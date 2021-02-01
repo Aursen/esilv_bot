@@ -1,2 +1,5 @@
-# esilv_bot
+# Esilv Bot
  
+# TODO
+- [ ] Add tests
+- [ ] Add travis
