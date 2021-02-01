@@ -50,7 +50,7 @@ async fn response(req: Request<Body>) -> Result<Response<Body>> {
             if let Some(id) = get_queries(req.uri().query().unwrap_or("")).get("id") {
                 let bdd = MongoClient::init().await.unwrap();
                 let parsed_id = id.parse::<u64>().unwrap_or(0);
-                let user = bdd.get_user(parsed_id).await.unwrap();
+                let user = bdd.get_user(parsed_id).await.unwrap_or(None);
                 if user.is_some() {
                     return default_message("Vous êtes déjà enregistré!");
                 } else {
