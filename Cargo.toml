@@ -1,0 +1,2 @@
+[workspace]
+members = ["leo_bot", "leo_website", "leo_shared"]
