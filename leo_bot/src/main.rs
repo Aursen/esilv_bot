@@ -2,6 +2,7 @@ mod commands;
 
 use leo_shared::MongoClient;
 use leo_shared::Room;
+use leo_shared::user::DevinciType;
 
 use serenity::model::channel::ChannelType;
 use serenity::model::prelude::GuildId;
@@ -57,9 +58,16 @@ impl EventHandler for Handler {
                     let role = RoleId::from(config.roles["verified"]);
 
                     let client = MongoClient::init().await.unwrap();
-                    let is_in_bdd = client.check_user(u.0).await.unwrap_or(false);
-                    if is_in_bdd {
-                        g.edit_member(&context, u, |m| m.roles(&vec![role]))
+                    let user = client.get_user(u.0).await.unwrap();
+                    if let Some(bdd_user) = user{
+                        let mut roles = vec![role];
+                        match bdd_user.get_type() {
+                            DevinciType::Student(_) => roles.push(RoleId::from(config.roles["a1"])),
+                            DevinciType::Professor => roles.push(RoleId::from(config.roles["teacher"])),
+                            DevinciType::Other => (), 
+                        }
+                        let (first_name, last_name) = bdd_user.get_name();
+                        g.edit_member(&context, u, |m| m.roles(&roles).nickname(format!("{} {} | TD-X", first_name, last_name)))
                             .await
                             .unwrap();
                     }

@@ -30,4 +30,12 @@ impl DevinciUser {
     pub fn set_discord_id(&mut self, id: u64) {
         self.discord_id = id as i64;
     }
+
+    pub fn get_type(&self) -> &DevinciType {
+        &self.func
+    }
+
+    pub fn get_name(&self) -> (&str, &str){
+        (&self.first_name, &self.last_name)
+    }
 }

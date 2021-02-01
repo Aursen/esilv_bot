@@ -52,14 +52,13 @@ impl MongoClient {
         Ok(Self { db })
     }
 
-    pub async fn check_user(&self, id: u64) -> Result<bool, Error> {
+    pub async fn get_user(&self, id: u64) -> Result<Option<DevinciUser>, Error> {
         let collection = self.db.collection("users");
         let doc = doc! { "discord_id": id };
         let user = collection.find_one(doc, None).await?;
-        if user.is_some() {
-            Ok(true)
-        } else {
-            Ok(false)
+        match user {
+            Some(u) => Ok(Some(bson::from_document::<DevinciUser>(u)?)),
+            None => Ok(None)
         }
     }
 
