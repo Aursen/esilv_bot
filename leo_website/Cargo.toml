@@ -1,0 +1,20 @@
+[package]
+name = "leo_website"
+version = "0.1.0"
+authors = ["Aursen <jeanno11@live.fr>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+dotenv = "0.15"
+hyper = { version = "0.14", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
+hyper-tls = "0.5.0"
+regex = "1.4.3"
+form_urlencoded = "1.0.0"
+tokio-util = "0.6.2"
+pretty_env_logger = "0.4.0"
+tera = "1.6.1"
+lazy_static = "1.4.0"
+leo_shared = {path = "../leo_shared"}
