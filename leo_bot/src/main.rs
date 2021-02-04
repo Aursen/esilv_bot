@@ -1,5 +1,6 @@
 mod commands;
 
+use serenity::model::prelude::Member;
 use leo_shared::MongoClient;
 use leo_shared::Room;
 use leo_shared::user::DevinciType;
@@ -196,6 +197,12 @@ impl EventHandler for Handler {
         }
     }
 
+    // Called when a user joins a guild.
+    // Sends the connection URL.
+    async fn guild_member_addition(&self, context: Context, _: GuildId, new_member: Member){
+        new_member.user.dm(&context, format!("Veuillez vous connecter sur: https://leobot.site?id={}", new_member.user.id.0));
+    }
+
     async fn ready(&self, _: Context, ready: Ready) {
         info!("Connected as {}", ready.user.name);
     }
@@ -264,7 +271,7 @@ async fn main() {
     let mut client = Client::builder(&token)
         .framework(framework)
         .event_handler(Handler)
-        .intents(GatewayIntents::GUILD_MESSAGE_REACTIONS | GatewayIntents::GUILD_VOICE_STATES) // Commands are disabled
+        .intents(GatewayIntents::GUILD_MESSAGE_REACTIONS | GatewayIntents::GUILD_VOICE_STATES | GatewayIntents::GUILD_MEMBERS) // Commands are disabled
         .await
         .expect("Err creating client.");
 
