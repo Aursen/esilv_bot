@@ -41,6 +41,7 @@ pub struct MongoClient {
 }
 
 impl MongoClient {
+    // Inits the database connection
     pub async fn init() -> Result<Self, Error> {
         let client_uri =
             env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
@@ -52,6 +53,7 @@ impl MongoClient {
         Ok(Self { db })
     }
 
+    // Gets user in the database
     pub async fn get_user(&self, id: u64) -> Result<Option<DevinciUser>, Error> {
         let collection = self.db.collection("users");
         let doc = doc! { "discord_id": id };
@@ -62,6 +64,7 @@ impl MongoClient {
         }
     }
 
+    // Adds user in the database
     pub async fn add_user(&self, id: u64, user: &mut DevinciUser) -> Result<(), Error> {
         let collection = self.db.collection("users");
         user.set_discord_id(id);
@@ -71,6 +74,7 @@ impl MongoClient {
         Ok(())
     }
 
+    // Gets room in the database
     pub async fn get_room(&self, discord_id: u64) -> Result<Option<Room>, Error> {
         let collection = self.db.collection("rooms");
         let doc = doc! { "discord_id": discord_id };
@@ -81,6 +85,7 @@ impl MongoClient {
         }
     }
 
+    // Adds room in the database
     pub async fn add_room(&self, room: &Room) -> Result<(), Error> {
         let collection = self.db.collection("rooms");
         collection
@@ -89,6 +94,7 @@ impl MongoClient {
         Ok(())
     }
 
+    // Removes room in the database
     pub async fn remove_room(&self, room: &Room) -> Result<DeleteResult, Error> {
         let collection = self.db.collection("rooms");
         collection.delete_one(bson::to_document(room)?, None).await
