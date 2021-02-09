@@ -77,10 +77,7 @@ impl EventHandler for Handler {
                             deny: Permissions::default(),
                             kind: PermissionOverwriteType::Member(u),
                         };
-                        ChannelId(*c)
-                            .create_permission(&context, &overwrite)
-                            .await
-                            .unwrap();
+                        let _ = ChannelId(*c).create_permission(&context, &overwrite).await;
                     }
                 }
             }
@@ -116,10 +113,9 @@ impl EventHandler for Handler {
             if let Some(e) = emoji {
                 if let Some(c) = s.channels.get(&e) {
                     if let Some(u) = reaction.user_id {
-                        ChannelId(*c)
+                        let _ = ChannelId(*c)
                             .delete_permission(&context, PermissionOverwriteType::Member(u))
-                            .await
-                            .unwrap();
+                            .await;
                     }
                 }
             }
@@ -146,30 +142,30 @@ impl EventHandler for Handler {
         if let Some(guild) = guild_id {
             if let Some(channel) = &new.channel_id {
                 if channel.0 == config.room {
-                    let db = MongoClient::init().await.unwrap();
-                    let room = db.get_room(new.user_id.0).await.unwrap();
-                    if let Some(r) = room {
-                        guild
-                            .move_member(&context, new.user_id, r.get_office_id())
-                            .await
-                            .unwrap();
-                    } else {
-                        create_room(&context, guild, &new, config).await;
+                    let bdd_result = MongoClient::init().await;
+                    if let Ok(bdd) = bdd_result {
+                        let room = bdd.get_room(new.user_id.0).await.unwrap_or(None);
+                        if let Some(r) = room {
+                            let _ = guild
+                                .move_member(&context, new.user_id, r.get_office_id())
+                                .await;
+                        } else {
+                            create_room(&context, guild, &new, config).await;
+                        }
                     }
                 }
             }
 
             if new.channel_id.is_none() {
-                let db = MongoClient::init().await.unwrap();
-                let room = db.get_room(new.user_id.0).await.unwrap();
-                if let Some(r) = room {
-                    db.remove_room(&r).await.unwrap();
-                    info!("{:?}", r);
-                    ChannelId(r.get_office_id()).delete(&context).await.unwrap();
-                    ChannelId(r.get_waiting_id())
-                        .delete(&context)
-                        .await
-                        .unwrap();
+                let bdd_result = MongoClient::init().await;
+                if let Ok(bdd) = bdd_result {
+                    let room = bdd.get_room(new.user_id.0).await.unwrap_or(None);
+                    if let Some(r) = room {
+                        let _ = bdd.remove_room(&r).await;
+                        info!("{:?}", r);
+                        let _ = ChannelId(r.get_office_id()).delete(&context).await;
+                        let _ = ChannelId(r.get_waiting_id()).delete(&context).await;
+                    }
                 }
             }
         }
@@ -192,24 +188,28 @@ impl EventHandler for Handler {
                 if let Ok(u) = user_id {
                     let role = RoleId::from(config.roles["verified"]);
 
-                    let client = MongoClient::init().await.unwrap();
-                    let user = client.get_user(u).await.unwrap();
-                    if let Some(bdd_user) = user {
-                        let mut roles = vec![role];
-                        match bdd_user.get_type() {
-                            DevinciType::Student(_) => roles.push(RoleId::from(config.roles["a1"])),
-                            DevinciType::Professor => {
-                                roles.push(RoleId::from(config.roles["teacher"]))
+                    let bdd_result = MongoClient::init().await;
+                    if let Ok(bdd) = bdd_result {
+                        let user = bdd.get_user(u).await.unwrap_or(None);
+                        if let Some(bdd_user) = user {
+                            let mut roles = vec![role];
+                            match bdd_user.get_type() {
+                                DevinciType::Student(_) => {
+                                    roles.push(RoleId::from(config.roles["a1"]))
+                                }
+                                DevinciType::Professor => {
+                                    roles.push(RoleId::from(config.roles["teacher"]))
+                                }
+                                DevinciType::Other => (),
                             }
-                            DevinciType::Other => (),
+                            let (first_name, last_name) = bdd_user.get_name();
+                            let _ = g
+                                .edit_member(&ctx, u, |m| {
+                                    m.roles(&roles)
+                                        .nickname(format!("{} {} | TD-X", first_name, last_name))
+                                })
+                                .await;
                         }
-                        let (first_name, last_name) = bdd_user.get_name();
-                        g.edit_member(&ctx, u, |m| {
-                            m.roles(&roles)
-                                .nickname(format!("{} {} | TD-X", first_name, last_name))
-                        })
-                        .await
-                        .unwrap();
                     }
                 }
             }
@@ -329,6 +329,7 @@ async fn main() {
     }
 }
 
+//TODO clean this
 async fn create_room(
     context: &Context,
     guild: GuildId,
