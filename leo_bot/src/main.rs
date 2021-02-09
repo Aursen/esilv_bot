@@ -1,9 +1,10 @@
 mod commands;
 
-use serenity::model::prelude::Member;
+use leo_shared::user::DevinciType;
 use leo_shared::MongoClient;
 use leo_shared::Room;
-use leo_shared::user::DevinciType;
+use serenity::model::prelude::Member;
+use serenity::model::prelude::Message;
 
 use serenity::model::channel::ChannelType;
 use serenity::model::prelude::GuildId;
@@ -52,29 +53,6 @@ impl EventHandler for Handler {
         };
 
         let config = config_lock.read().await;
-
-        if reaction.message_id == config.rules {
-            if let Some(g) = reaction.guild_id {
-                if let Some(u) = reaction.user_id {
-                    let role = RoleId::from(config.roles["verified"]);
-
-                    let client = MongoClient::init().await.unwrap();
-                    let user = client.get_user(u.0).await.unwrap();
-                    if let Some(bdd_user) = user{
-                        let mut roles = vec![role];
-                        match bdd_user.get_type() {
-                            DevinciType::Student(_) => roles.push(RoleId::from(config.roles["a1"])),
-                            DevinciType::Professor => roles.push(RoleId::from(config.roles["teacher"])),
-                            DevinciType::Other => (), 
-                        }
-                        let (first_name, last_name) = bdd_user.get_name();
-                        g.edit_member(&context, u, |m| m.roles(&roles).nickname(format!("{} {} | TD-X", first_name, last_name)))
-                            .await
-                            .unwrap();
-                    }
-                }
-            }
-        }
 
         let subject = config
             .subjects
@@ -172,10 +150,10 @@ impl EventHandler for Handler {
                     let room = db.get_room(new.user_id.0).await.unwrap();
                     if let Some(r) = room {
                         guild
-                        .move_member(&context, new.user_id, r.get_office_id())
-                        .await
-                        .unwrap();
-                    }else{
+                            .move_member(&context, new.user_id, r.get_office_id())
+                            .await
+                            .unwrap();
+                    } else {
                         create_room(&context, guild, &new, config).await;
                     }
                 }
@@ -197,10 +175,57 @@ impl EventHandler for Handler {
         }
     }
 
+    async fn message(&self, ctx: Context, new_message: Message) {
+        let config_lock = {
+            let data_read = ctx.data.read().await;
+            data_read
+                .get::<ExternalConfig>()
+                .expect("Expected Config in TypeMap.")
+                .clone()
+        };
+
+        let config = config_lock.read().await;
+
+        if *new_message.channel_id.as_u64() == config.webhook {
+            if let Some(g) = new_message.guild_id {
+                let user_id = new_message.content.parse::<u64>();
+                if let Ok(u) = user_id {
+                    let role = RoleId::from(config.roles["verified"]);
+
+                    let client = MongoClient::init().await.unwrap();
+                    let user = client.get_user(u).await.unwrap();
+                    if let Some(bdd_user) = user {
+                        let mut roles = vec![role];
+                        match bdd_user.get_type() {
+                            DevinciType::Student(_) => roles.push(RoleId::from(config.roles["a1"])),
+                            DevinciType::Professor => {
+                                roles.push(RoleId::from(config.roles["teacher"]))
+                            }
+                            DevinciType::Other => (),
+                        }
+                        let (first_name, last_name) = bdd_user.get_name();
+                        g.edit_member(&ctx, u, |m| {
+                            m.roles(&roles)
+                                .nickname(format!("{} {} | TD-X", first_name, last_name))
+                        })
+                        .await
+                        .unwrap();
+                    }
+                }
+            }
+        }
+    }
+
     // Called when a user joins a guild.
     // Sends the connection URL.
-    async fn guild_member_addition(&self, context: Context, _: GuildId, new_member: Member){
-        new_member.user.dm(&context, format!("Veuillez vous connecter sur: https://leobot.site?id={}", new_member.user.id.0));
+    async fn guild_member_addition(&self, context: Context, _: GuildId, new_member: Member) {
+        new_member.user.dm(
+            &context,
+            format!(
+                "Veuillez vous connecter sur: https://leobot.site?id={}",
+                new_member.user.id.0
+            ),
+        );
     }
 
     async fn ready(&self, _: Context, ready: Ready) {
@@ -221,7 +246,7 @@ impl TypeMapKey for ExternalConfig {
 #[derive(Serialize, Deserialize)]
 struct Config {
     roles: HashMap<String, u64>,
-    rules: u64,
+    webhook: u64,
     room: u64,
     teacher_category: u64,
     subjects: Vec<SubjectsMessage>,
@@ -271,7 +296,12 @@ async fn main() {
     let mut client = Client::builder(&token)
         .framework(framework)
         .event_handler(Handler)
-        .intents(GatewayIntents::GUILD_MESSAGE_REACTIONS | GatewayIntents::GUILD_VOICE_STATES | GatewayIntents::GUILD_MEMBERS) // Commands are disabled
+        .intents(
+            GatewayIntents::GUILD_MESSAGE_REACTIONS
+                | GatewayIntents::GUILD_VOICE_STATES
+                | GatewayIntents::GUILD_MEMBERS
+                | GatewayIntents::GUILD_MESSAGES,
+        ) // Commands are disabled
         .await
         .expect("Err creating client.");
 
@@ -335,7 +365,13 @@ async fn create_room(
     let member = new.member.as_ref().unwrap();
     let waiting = guild
         .create_channel(&context, |c| {
-            c.name(member.nick.as_ref().unwrap_or(&member.user.name).to_string())
+            c.name(
+                member
+                    .nick
+                    .as_ref()
+                    .unwrap_or(&member.user.name)
+                    .to_string(),
+            )
             .category(config.teacher_category)
             .permissions(permissions_waiting)
             .user_limit(5)
