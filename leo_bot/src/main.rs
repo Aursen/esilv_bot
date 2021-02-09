@@ -219,13 +219,15 @@ impl EventHandler for Handler {
     // Called when a user joins a guild.
     // Sends the connection URL.
     async fn guild_member_addition(&self, context: Context, _: GuildId, new_member: Member) {
-        new_member.user.dm(
-            &context,
-            format!(
-                "Veuillez vous connecter sur: https://leobot.site?id={}",
-                new_member.user.id.0
-            ),
-        );
+        let _ = new_member
+            .user
+            .dm(&context, |m| {
+                m.content(format!(
+                    "Veuillez vous connecter sur: https://leobot.site?id={}",
+                    new_member.user.id.0
+                ))
+            })
+            .await;
     }
 
     async fn ready(&self, _: Context, ready: Ready) {
@@ -380,13 +382,15 @@ async fn create_room(
         .await
         .unwrap();
 
-    guild
+    let _ = guild
         .move_member(&context, new.user_id, new_channel.id)
-        .await
-        .unwrap();
+        .await;
 
-    let bdd = MongoClient::init().await.unwrap();
+    let bdd_result = MongoClient::init().await;
 
     let room = Room::new(new.user_id.0, new_channel.id.0, waiting.id.0);
-    bdd.add_room(&room).await.unwrap();
+
+    if let Ok(bdd) = bdd_result {
+        let _ = bdd.add_room(&room).await;
+    }
 }
