@@ -6,28 +6,15 @@
 </div>
 {% endif %}
 <form action="/login" method="POST">
-  <div class="field">
-    <div class="control has-icons-left">
-      <input class="input" name="username" type="text" placeholder="Email DeVinci" required>
-      <span class="icon is-small is-left">
-        <i class="fas fa-user"></i>
-      </span>
-    </div>
+  <div class="custom-field">
+    <input type="email" name="username" id="username" placeholder=" " required>
+    <label for="username">Email DeVinci</label>
   </div>
+  <div class="custom-field">
+    <input type="password" name="password" id="password" placeholder=" " required>
+    <label for="password">Mot de passe</label>
+  </div>
+  <input type="submit" class="custom-btn" value="Connexion">
 
-  <div class="field">
-    <div class="control has-icons-left">
-      <input class="input" name="password" type="password" placeholder="Mot de passe" required>
-      <span class="icon is-small is-left">
-        <i class="fas fa-key"></i>
-      </span>
-    </div>
-  </div>
-
-  <div class="field">
-    <p class="control">
-      <button class="button is-danger is-fullwidth" type="submit" value="Submit">Connexion</button>
-    </p>
-  </div>
 </form>
 {% endblock content %}
