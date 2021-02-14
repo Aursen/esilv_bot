@@ -152,7 +152,6 @@ impl DevinciClient {
         
         //re = Regex::new(r#"<span style="opacity: 1;">([\w\s-]+)\s([A-Z\s]+)</span>"#)?;
         re = Regex::new(r#"<div>(Monsieur|Madame)\s([\w\s-]+)\s([A-Z\s]+)\s</div>"#)?;
-        println!("{}", &body);
 
         match re.captures(&body) {
             Some(cap) => {

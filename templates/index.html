@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 {% if credentials_error %}
-<div class="notification is-danger is-light">
-  Email DeVinci ou mot de passe invalides!
+<div class="card">
+  <p>
+    Email DeVinci ou mot de passe invalides!
+  </p>
 </div>
 {% endif %}
 <form action="/login" method="POST">
