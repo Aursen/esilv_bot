@@ -206,7 +206,7 @@ impl EventHandler for Handler {
                             let _ = g
                                 .edit_member(&ctx, u, |m| {
                                     m.roles(&roles)
-                                        .nickname(format!("{} {} | TD-X", first_name, last_name))
+                                        .nickname(format!("{} {}", first_name, last_name))
                                 })
                                 .await;
                         }
