@@ -1,12 +1,12 @@
 mod commands;
+mod utils;
 
+use crate::utils::room::remove_room;
+use crate::utils::room::create_room;
 use leo_shared::user::DevinciType;
 use leo_shared::MongoClient;
-use leo_shared::Room;
 use serenity::model::prelude::Member;
 use serenity::model::prelude::Message;
-
-use serenity::model::channel::ChannelType;
 use serenity::model::prelude::GuildId;
 use serenity::model::voice::VoiceState;
 use serenity::{
@@ -25,7 +25,7 @@ use serenity::{
 };
 use std::collections::HashMap;
 use std::{collections::HashSet, env, sync::Arc};
-use tokio::sync::RwLockReadGuard;
+
 
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -161,10 +161,7 @@ impl EventHandler for Handler {
                 if let Ok(bdd) = bdd_result {
                     let room = bdd.get_room(new.user_id.0).await.unwrap_or(None);
                     if let Some(r) = room {
-                        let _ = bdd.remove_room(&r).await;
-                        info!("{:?}", r);
-                        let _ = ChannelId(r.get_office_id()).delete(&context).await;
-                        let _ = ChannelId(r.get_waiting_id()).delete(&context).await;
+                        remove_room(&context, &bdd, &r).await;
                     }
                 }
             }
@@ -246,7 +243,7 @@ impl TypeMapKey for ExternalConfig {
 }
 
 #[derive(Serialize, Deserialize)]
-struct Config {
+pub struct Config {
     roles: HashMap<String, u64>,
     webhook: u64,
     room: u64,
@@ -255,7 +252,7 @@ struct Config {
 }
 
 #[derive(Serialize, Deserialize)]
-struct SubjectsMessage {
+pub struct SubjectsMessage {
     id: u64,
     channels: HashMap<String, u64>,
 }
@@ -330,68 +327,4 @@ async fn main() {
 }
 
 //TODO clean this
-async fn create_room(
-    context: &Context,
-    guild: GuildId,
-    new: &VoiceState,
-    config: RwLockReadGuard<'_, Config>,
-) {
-    let permissions_office = vec![
-        PermissionOverwrite {
-            allow: Permissions::READ_MESSAGES,
-            deny: Permissions::default(),
-            kind: PermissionOverwriteType::Member(new.user_id),
-        },
-        PermissionOverwrite {
-            allow: Permissions::default(),
-            deny: Permissions::READ_MESSAGES,
-            kind: PermissionOverwriteType::Role(RoleId(*config.roles.get("everyone").unwrap())),
-        },
-    ];
 
-    let permissions_waiting = vec![PermissionOverwrite {
-        allow: Permissions::READ_MESSAGES,
-        deny: Permissions::SPEAK,
-        kind: PermissionOverwriteType::Role(RoleId(*config.roles.get("everyone").unwrap())),
-    }];
-
-    let new_channel = guild
-        .create_channel(&context, |c| {
-            c.name("Bureau")
-                .category(config.teacher_category)
-                .permissions(permissions_office)
-                .user_limit(2)
-                .kind(ChannelType::Voice)
-        })
-        .await
-        .unwrap();
-    let member = new.member.as_ref().unwrap();
-    let waiting = guild
-        .create_channel(&context, |c| {
-            c.name(
-                member
-                    .nick
-                    .as_ref()
-                    .unwrap_or(&member.user.name)
-                    .to_string(),
-            )
-            .category(config.teacher_category)
-            .permissions(permissions_waiting)
-            .user_limit(5)
-            .kind(ChannelType::Voice)
-        })
-        .await
-        .unwrap();
-
-    let _ = guild
-        .move_member(&context, new.user_id, new_channel.id)
-        .await;
-
-    let bdd_result = MongoClient::init().await;
-
-    let room = Room::new(new.user_id.0, new_channel.id.0, waiting.id.0);
-
-    if let Ok(bdd) = bdd_result {
-        let _ = bdd.add_room(&room).await;
-    }
-}

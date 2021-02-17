@@ -151,25 +151,17 @@ impl DevinciClient {
         };
         
         //re = Regex::new(r#"<span style="opacity: 1;">([\w\s-]+)\s([A-Z\s]+)</span>"#)?;
-        re = Regex::new(r#"<div>(Monsieur|Madame)\s([\w\s-]+)\s([A-Z\s]+)\s</div>"#)?;
+        //re = Regex::new(r#"<div>(Monsieur|Madame)\s([\w\s-]+)\s([A-Z\s]+)\s</div>"#)?;
 
-        match re.captures(&body) {
-            Some(cap) => {
-                let first_name = cap[2].trim().to_string();
-                let last_name = uppercase_first_letter(cap[3].trim());
-                let user = DevinciUser::new(first_name, last_name, (&username).to_string(), func);
+        re = Regex::new(r"([\w])(\w+)")?;
 
-                Ok(user)
-            }
-            _ => Err("Credentials error".into())
-        }
-    }
-}
+        let mut cred = username.split('@').next().unwrap().split('.');
 
-fn uppercase_first_letter(s: &str) -> String {
-    let mut c = s.chars();
-    match c.next() {
-        None => String::new(),
-        Some(f) => f.to_uppercase().collect::<String>() + &c.as_str().to_ascii_lowercase(),
+        let cap1 = re.captures(&cred.next().unwrap()).unwrap();
+        let cap2 = re.captures(&cred.next().unwrap()).unwrap();
+
+        let first_name = format!("{}{}", &cap1[1].to_uppercase(), &cap1[2]);
+        let last_name = format!("{}{}", &cap2[1].to_uppercase(), &cap2[2]);
+        Ok(DevinciUser::new(first_name, last_name, (&username).to_string(), func))
     }
 }
