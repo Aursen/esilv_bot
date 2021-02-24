@@ -1,187 +1,155 @@
-mod client;
+mod discord;
 
-extern crate lazy_static;
-use hyper::Client;
-use hyper_tls::HttpsConnector;
-use crate::client::DevinciClient;
-use hyper::body::Bytes;
-use lazy_static::lazy_static;
+use tokio::runtime::Runtime;
+use crate::discord::DiscordAuth;
+use actix_files as fs;
+use actix_session::CookieSession;
+use actix_session::Session;
+use actix_web::client::Client;
+use actix_web::http::header::CONTENT_TYPE;
+use actix_web::middleware::Logger;
+use actix_web::HttpResponse;
+use actix_web::Result;
+use actix_web::{get, http, post, web, App, HttpServer};
 use leo_shared::MongoClient;
-use std::collections::HashMap;
+use serde::Deserialize;
+use serde_json::json;
 use tera::Context;
 use tera::Tera;
-use std::env;
+use leo_auth::DevinciClient;
 
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, Request, Response, Result, Server, StatusCode};
-
-lazy_static! {
-    pub static ref TEMPLATES: Tera = {
-        match Tera::new("templates/**/*") {
-            Ok(t) => t,
-            Err(e) => {
-                println!("Parsing error(s): {}", e);
-                ::std::process::exit(1);
-            }
-        }
-    };
+#[derive(Deserialize)]
+struct Info {
+    code: String,
 }
 
-#[tokio::main]
-async fn main() {
-    pretty_env_logger::init();
-
-    if cfg!(debug_assertions) {
-        dotenv::dotenv().expect("Failed to load .env file.");
-    }
-
-    let addr = "127.0.0.1:1337".parse().unwrap();
-    let make_service = make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(response)) });
-
-    let server = Server::bind(&addr).serve(make_service);
-
-    println!("Listening on http://{}", addr);
-
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
-    }
+#[derive(Deserialize)]
+struct Credentials {
+    username: String,
+    password: String,
 }
 
-async fn response(req: Request<Body>) -> Result<Response<Body>> {
-    match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => {
-            if let Some(id) = get_queries(req.uri().query().unwrap_or("")).get("id") {
-                let bdd = MongoClient::init().await.unwrap();
-                let parsed_id = id.parse::<u64>().unwrap_or(0);
-                let user = bdd.get_user(parsed_id).await.unwrap_or(None);
-                if user.is_some() {
-                    return default_message("Vous êtes déjà enregistré!");
-                } else {
-                    let mut resp = generate_tera_response("index.html", &Context::new())?;
-                    resp.headers_mut().insert(
-                        hyper::header::SET_COOKIE,
-                        format!("user_id={}", parsed_id).parse().unwrap(),
-                    );
-                    return Ok(resp);
-                }
-            }
-            return not_found();
-        }
-        (&Method::POST, "/login") => {
-            let cookies = req
-                .headers()
-                .get_all(hyper::header::COOKIE)
-                .iter()
-                .find(|e| e.to_str().unwrap_or("").contains("user_id"));
-            if let Some(c) = cookies {
-                let id =
-                    c.to_str().unwrap().split('=').collect::<Vec<_>>().to_vec()[1].parse::<u64>();
-                if let Ok(parsed_id) = id {
-                    let b = hyper::body::to_bytes(req).await?;
-                    sign_in(parsed_id, b).await
-                } else {
-                    not_found()
-                }
-            } else {
-                not_found()
-            }
-        }
-        (&Method::GET, "/static/style.css") => Ok(stylesheet()),
-        (&Method::GET, "/static/esilv.png") => Ok(logo()),
-        _ => not_found(),
-    }
-}
+#[get("/register")]
+async fn register(
+    tmpl: web::Data<tera::Tera>,
+    info: web::Query<Info>,
+    session: Session,
+) -> Result<HttpResponse> {
+    let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr");
 
-fn stylesheet() -> Response<Body> {
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/css")
-        .body(Body::from(include_str!("assets/style.css")))
-        .unwrap()
-}
+    let token = discord_auth.get_token(&info.code).await.unwrap();
+    let id = discord_auth.get_id(&token).await.unwrap();
 
-fn logo() -> Response<Body> {
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "image/png")
-        .body(Body::from(include_bytes!("assets/esilv.png").to_vec()))
-        .unwrap()
-}
+    let bdd = MongoClient::init().await.unwrap();
+    let parsed_id = id.parse::<u64>().unwrap_or(0);
+    let user = bdd.get_user(parsed_id).await.unwrap_or(None);
 
-fn default_message(content: &str) -> Result<Response<Body>> {
-    let mut context = Context::new();
-    context.insert("message", content);
-    generate_tera_response("default.html", &context)
-}
-
-fn generate_tera_response(path: &str, context: &Context) -> Result<Response<Body>> {
-    Ok(Response::new(Body::from(
-        TEMPLATES.render(path, context).unwrap(),
-    )))
-}
-
-/// HTTP status code 404
-fn not_found() -> Result<Response<Body>> {
-    let mut context = Context::new();
-    context.insert("message", "Erreur 404");
-    Ok(Response::builder()
-        .status(StatusCode::NOT_FOUND)
-        .body(Body::from(
-            TEMPLATES.render("default.html", &context).unwrap(),
-        ))
-        .unwrap())
-}
-
-fn get_queries(query: &str) -> HashMap<String, String> {
-    let mut result = HashMap::new();
-    for queries in query.split('&').collect::<Vec<_>>().iter() {
-        let mut splitted = queries.split('=');
-        result.insert(
-            splitted.next().unwrap().to_string(),
-            (splitted.next().unwrap_or("")).to_string(),
-        );
-    }
-    result
-}
-
-async fn sign_in(id: u64, form: Bytes) -> Result<Response<Body>> {
-    let params = form_urlencoded::parse(&form)
-        .into_owned()
-        .collect::<HashMap<String, String>>();
-
-    let username = match params.get("username") {
-        Some(u) => u,
-        _ => return not_found(),
+    let content = if user.is_some() {
+        let mut ctx = Context::new();
+        ctx.insert("message", "Vous êtes déjà enregistré!");
+        tmpl.render("default.html", &ctx)
+    } else {
+        session.set("id", &parsed_id)?;
+        tmpl.render("index.html", &Context::new())
     };
 
-    let password = match params.get("password") {
-        Some(p) => p,
-        _ => return not_found(),
-    };
+    match content {
+        Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
+        Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
+    }
+}
+
+#[post("/login")]
+async fn login(
+    tmpl: web::Data<tera::Tera>,
+    info: web::Form<Credentials>,
+    session: Session,
+) -> Result<HttpResponse> {
+    let id = session.get::<u64>("id").unwrap_or(Some(0_u64)).unwrap();
 
     let bdd = MongoClient::init().await.unwrap();
 
     let mut client = DevinciClient::new();
-    let devinci_user = match client.login(username, password).await {
-        Ok(u) => Some(u),
-        _ => None,
+
+    let rt = Runtime::new().unwrap();
+    let devinci_user = rt.block_on(async {
+        client.login(&info.username, &info.password).await
+    });
+
+
+    let content = if let Ok(mut u) = devinci_user {
+        let mut ctx = Context::new();
+        if bdd.add_user(id, &mut u).await.is_ok() {
+            send_id(id).await.unwrap();
+            ctx.insert("message", "Vous êtes déjà enregistré!");
+            tmpl.render("default.html", &ctx)
+        }else{
+            ctx.insert("credentials_error", &true);
+            tmpl.render("index.html", &ctx)
+        }
+    } else {
+        let mut ctx = Context::new();
+        ctx.insert("credentials_error", &true);
+        tmpl.render("index.html", &ctx)
     };
 
-    if let Some(mut u) = devinci_user {
-        bdd.add_user(id, &mut u).await.unwrap();
-        send_id(id).await.unwrap();
-        default_message("Vous pouvez dorénavant retourner sur le Discord!")
-    } else {
-        let mut context = Context::new();
-        context.insert("credentials_error", &true);
-        generate_tera_response("index.html", &context)
+    match content {
+        Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
+        Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
     }
 }
 
+#[get("/")]
+async fn index() -> Result<HttpResponse> {
+    let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr");
+    Ok(HttpResponse::Found()
+        .header(
+            http::header::LOCATION,
+            discord_auth.generate_authorize_url(),
+        )
+        .finish())
+}
+
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
+    if cfg!(debug_assertions) {
+        dotenv::dotenv().expect("Failed to load .env file.");
+        std::env::set_var("RUST_LOG", "actix_web=info");
+        env_logger::init();
+    }
+
+    let addr = "127.0.0.1:8080";
+
+    println!("Listening on http://{}", addr);
+
+    HttpServer::new(|| {
+        let tera = Tera::new("templates/**/*").unwrap();
+        App::new()
+            .data(tera)
+            .wrap(Logger::default())
+            .wrap(CookieSession::signed(&[0; 32]).secure(false))
+            .service(register)
+            .service(login)
+            .service(index)
+            .service(fs::Files::new("/static", "static").show_files_listing())
+            .default_service(web::route().to(|| HttpResponse::NotFound()))
+    })
+    .bind(addr)?
+    .run()
+    .await
+}
+
 async fn send_id(id: u64) -> Result<()> {
-    let client = Client::builder().build::<_, Body>(HttpsConnector::new());
-    let webhook = env::var("WEBHOOK_URI").expect("You must set the WEBHOOK_URI environment var!");
-    let req = Request::builder().method(Method::POST).uri(webhook).header(hyper::header::CONTENT_TYPE, "application/json").body(Body::from(format!("{{\"content\": \"{}\"}}", id))).unwrap();
-    client.request(req).await.unwrap();
+    let client = Client::new();
+    let webhook =
+        std::env::var("WEBHOOK_URI").expect("You must set the WEBHOOK_URI environment var!");
+
+    let data = json!({ "content": id });
+
+    client
+        .post(webhook)
+        .header(CONTENT_TYPE, "application/json")
+        .send_json(&data)
+        .await?;
     Ok(())
 }

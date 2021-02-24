@@ -120,6 +120,7 @@ impl DevinciClient {
                 "https://www.leonard-de-vinci.net/login.sso.php",
             )
             .finish();
+
         let (redir, _) = self.send(Method::POST, "https://www.leonard-de-vinci.net/include/SAML/module.php/saml/sp/saml2-acs.php/devinci-sp", Some(encoded)).await?;
 
         if let Some(link) = &redir {
@@ -127,7 +128,6 @@ impl DevinciClient {
         }else{
             return Err("Credentials error".into())
         }
-        
 
         let (_, body) = self
             .send(Method::GET, "https://www.leonard-de-vinci.net", None)
