@@ -35,7 +35,7 @@ async fn register(
     info: web::Query<Info>,
     session: Session,
 ) -> Result<HttpResponse> {
-    let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr");
+    let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr/register");
 
     let token = discord_auth.get_token(&info.code).await.unwrap();
     let id = discord_auth.get_id(&token).await.unwrap();
@@ -101,7 +101,7 @@ async fn login(
 
 #[get("/")]
 async fn index() -> Result<HttpResponse> {
-    let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr");
+    let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr/register");
     Ok(HttpResponse::Found()
         .header(
             http::header::LOCATION,
