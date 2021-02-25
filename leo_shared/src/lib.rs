@@ -1,12 +1,9 @@
 pub mod user;
 
 use crate::user::DevinciUser;
-use mongodb::bson::doc;
-use mongodb::error::Error;
-use mongodb::options::ClientOptions;
-use mongodb::results::DeleteResult;
-use mongodb::Client;
-use mongodb::Database;
+use mongodb::{
+    bson::doc, error::Error, options::ClientOptions, results::DeleteResult, Client, Database,
+};
 use serde::{Deserialize, Serialize};
 use std::env;
 
@@ -60,7 +57,7 @@ impl MongoClient {
         let user = collection.find_one(doc, None).await?;
         match user {
             Some(u) => Ok(Some(bson::from_document::<DevinciUser>(u)?)),
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 
@@ -81,7 +78,7 @@ impl MongoClient {
         let room = collection.find_one(doc.clone(), None).await?;
         match room {
             Some(r) => Ok(Some(bson::from_document::<Room>(r)?)),
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 
@@ -104,8 +101,8 @@ impl MongoClient {
 #[cfg(test)]
 mod tests {
 
-use crate::user::{DevinciUser, DevinciType};
-use crate::Room;
+    use crate::user::{DevinciType, DevinciUser};
+    use crate::Room;
 
     #[test]
     fn serialize_deserialize_room_test() {
@@ -118,7 +115,12 @@ use crate::Room;
 
     #[test]
     fn serialize_deserialize_user_test() {
-        let user = DevinciUser::new(String::from("test"), String::from("test"), String::from("test@devinci.fr"), DevinciType::Professor);
+        let user = DevinciUser::new(
+            String::from("test"),
+            String::from("test"),
+            String::from("test@devinci.fr"),
+            DevinciType::Professor,
+        );
         bson::from_document::<DevinciUser>(bson::to_document(&user).unwrap()).unwrap();
     }
 }

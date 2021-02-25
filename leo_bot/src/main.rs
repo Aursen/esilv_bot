@@ -1,13 +1,8 @@
 mod commands;
 mod utils;
 
-use crate::utils::room::remove_room;
-use crate::utils::room::create_room;
-use leo_shared::user::DevinciType;
-use leo_shared::MongoClient;
-use serenity::model::prelude::Message;
-use serenity::model::prelude::GuildId;
-use serenity::model::voice::VoiceState;
+use crate::utils::room::{create_room,remove_room};
+use leo_shared::{MongoClient, user::DevinciType};
 use serenity::{
     async_trait,
     client::bridge::gateway::{GatewayIntents, ShardManager},
@@ -18,12 +13,12 @@ use serenity::{
         event::ResumedEvent,
         gateway::Ready,
         permissions::Permissions,
-        prelude::{ChannelId, PermissionOverwrite, PermissionOverwriteType, Reaction, RoleId},
+        voice::VoiceState,
+        prelude::{Message,GuildId,ChannelId, PermissionOverwrite, PermissionOverwriteType, Reaction, RoleId},
     },
     prelude::*,
 };
-use std::collections::HashMap;
-use std::{collections::HashSet, env, sync::Arc};
+use std::{collections::{HashSet,HashMap}, env, sync::Arc};
 
 
 use tracing::{error, info};
@@ -310,6 +305,4 @@ async fn main() {
         error!("Client error: {:?}.", why);
     }
 }
-
-//TODO clean this
 

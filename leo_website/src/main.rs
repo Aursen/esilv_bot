@@ -1,22 +1,21 @@
 mod discord;
 
-use tokio::runtime::Runtime;
 use crate::discord::DiscordAuth;
 use actix_files as fs;
-use actix_session::CookieSession;
-use actix_session::Session;
-use actix_web::client::Client;
-use actix_web::http::header::CONTENT_TYPE;
-use actix_web::middleware::Logger;
-use actix_web::HttpResponse;
-use actix_web::Result;
-use actix_web::{get, http, post, web, App, HttpServer};
+use actix_session::{CookieSession, Session};
+use actix_web::{
+    get,
+    client::Client,
+    http::header::{CONTENT_TYPE, LOCATION},
+    middleware::Logger,
+    post, web, App, HttpResponse, HttpServer, Result,
+};
+use leo_auth::DevinciClient;
 use leo_shared::MongoClient;
 use serde::Deserialize;
 use serde_json::json;
-use tera::Context;
-use tera::Tera;
-use leo_auth::DevinciClient;
+use tera::{Context,Tera};
+use tokio::runtime::Runtime;
 
 #[derive(Deserialize)]
 struct Info {
@@ -37,7 +36,7 @@ async fn register(
 ) -> Result<HttpResponse> {
     let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr/register");
 
-    let token = discord_auth.get_token(&info.code).await.unwrap();
+    let token = discord_auth.get_token(&info.code).await.unwrap(); //Fix this
     let id = discord_auth.get_id(&token).await.unwrap();
 
     let bdd = MongoClient::init().await.unwrap();
@@ -72,10 +71,7 @@ async fn login(
     let mut client = DevinciClient::new();
 
     let rt = Runtime::new().unwrap();
-    let devinci_user = rt.block_on(async {
-        client.login(&info.username, &info.password).await
-    });
-
+    let devinci_user = rt.block_on(async { client.login(&info.username, &info.password).await });
 
     let content = if let Ok(mut u) = devinci_user {
         let mut ctx = Context::new();
@@ -83,7 +79,7 @@ async fn login(
             send_id(id).await.unwrap();
             ctx.insert("message", "Vous êtes déjà enregistré!");
             tmpl.render("default.html", &ctx)
-        }else{
+        } else {
             ctx.insert("credentials_error", &true);
             tmpl.render("index.html", &ctx)
         }
@@ -103,10 +99,7 @@ async fn login(
 async fn index() -> Result<HttpResponse> {
     let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr/register");
     Ok(HttpResponse::Found()
-        .header(
-            http::header::LOCATION,
-            discord_auth.generate_authorize_url(),
-        )
+        .header(LOCATION, discord_auth.generate_authorize_url())
         .finish())
 }
 
