@@ -4,8 +4,8 @@ use crate::discord::DiscordAuth;
 use actix_files as fs;
 use actix_session::{CookieSession, Session};
 use actix_web::{
-    get,
     client::Client,
+    get,
     http::header::{CONTENT_TYPE, LOCATION},
     middleware::Logger,
     post, web, App, HttpResponse, HttpServer, Result,
@@ -14,7 +14,7 @@ use leo_auth::DevinciClient;
 use leo_shared::MongoClient;
 use serde::Deserialize;
 use serde_json::json;
-use tera::{Context,Tera};
+use tera::{Context, Tera};
 use tokio::runtime::Runtime;
 
 #[derive(Deserialize)]
@@ -36,26 +36,28 @@ async fn register(
 ) -> Result<HttpResponse> {
     let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr/register");
 
-    let token = discord_auth.get_token(&info.code).await.unwrap(); //Fix this
-    let id = discord_auth.get_id(&token).await.unwrap();
-
-    let bdd = MongoClient::init().await.unwrap();
-    let parsed_id = id.parse::<u64>().unwrap_or(0);
-    let user = bdd.get_user(parsed_id).await.unwrap_or(None);
-
-    let content = if user.is_some() {
-        let mut ctx = Context::new();
-        ctx.insert("message", "Vous êtes déjà enregistré!");
-        tmpl.render("default.html", &ctx)
-    } else {
-        session.set("id", &parsed_id)?;
-        tmpl.render("index.html", &Context::new())
-    };
-
-    match content {
-        Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
-        Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
+    if let Ok(token) = discord_auth.get_token(&info.code).await {
+        if let Ok(id) = discord_auth.get_id(&token).await {
+            if let Ok(bdd) = MongoClient::init().await {
+                let parsed_id = id.parse::<u64>().unwrap_or(0);
+                let user = bdd.get_user(parsed_id).await.unwrap_or(None);
+                let content = if user.is_some() {
+                    let mut ctx = Context::new();
+                    ctx.insert("message", "Vous êtes déjà enregistré!");
+                    tmpl.render("default.html", &ctx)
+                } else {
+                    session.set("id", &parsed_id)?;
+                    tmpl.render("index.html", &Context::new())
+                };
+                return match content {
+                    Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
+                    Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
+                }
+            }
+        }
     }
+
+    Ok(HttpResponse::Found().header(LOCATION, "/").finish())
 }
 
 #[post("/login")]
