@@ -1,6 +1,4 @@
-use std::error::Error;
 use std::collections::HashMap;
-use actix_web::http::header::{CONTENT_TYPE, AUTHORIZATION};
 use actix_web::client::Client;
 use form_urlencoded::byte_serialize;
 
@@ -27,7 +25,7 @@ impl DiscordAuth {
         format!("https://discord.com/api/oauth2/authorize?client_id={}&redirect_uri={}&response_type=code&scope=identify", self.client_id, parsed_url)
     }
 
-    pub async fn get_token(&self, code: &str) -> Result<String, Box<dyn Error>> {
+    pub async fn get_token(&self, code: &str) -> actix_web::Result<String> {
         let mut data = HashMap::<&str, &str>::new();
         data.insert("client_id", &self.client_id);
         data.insert("client_secret", &self.client_secret);
@@ -36,29 +34,26 @@ impl DiscordAuth {
         data.insert("redirect_uri", &self.redirect);
         data.insert("scope", "identify");
 
-        let client = Client::new();
-
-        let mut response = client.post("https://discord.com/api/oauth2/token").header(CONTENT_TYPE, "application/x-www-form-urlencoded").send_form(&data).await.unwrap();
+        let mut response = Client::new().post("https://discord.com/api/oauth2/token").send_form(&data).await?;
         
-        let body = response.body().await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let body = response.body().await?;
+        let json: serde_json::Value = serde_json::from_slice(&body)?;
 
         match &json["access_token"] {
             serde_json::Value::String(t) => Ok(t.to_string()),
-            _ => Err("Invalid value")?
+            e => Ok(e.to_string())
         }
     }
 
-    pub async fn get_id(&self, token: &str) -> Result<String, Box<dyn Error>> {
-        let client = Client::new();
-        let mut response = client.get("https://discord.com/api/users/@me").header(AUTHORIZATION, format!("Bearer {}", token)).send().await.unwrap();
+    pub async fn get_id(&self, token: &str) -> actix_web::Result<String> {
+        let mut response = Client::builder().bearer_auth(token).finish().get("https://discord.com/api/users/@me").send().await?;
 
-        let body = response.body().await.unwrap();
-        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        let body = response.body().await?;
+        let json: serde_json::Value = serde_json::from_slice(&body)?;
 
         match &json["id"] {
             serde_json::Value::String(t) => Ok(t.to_string()),
-            _ => Err("Invalid value")?
+            e => Ok(e.to_string())
         }
     }
 }

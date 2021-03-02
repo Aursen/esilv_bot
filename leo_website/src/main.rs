@@ -1,5 +1,7 @@
+mod adfs;
 mod discord;
 
+use crate::adfs::ADFSAuth;
 use crate::discord::DiscordAuth;
 use actix_files as fs;
 use actix_session::{CookieSession, Session};
@@ -8,24 +10,43 @@ use actix_web::{
     get,
     http::header::{CONTENT_TYPE, LOCATION},
     middleware::Logger,
-    post, web, App, HttpResponse, HttpServer, Result,
+    web, App, HttpResponse, HttpServer, Result,
 };
-use leo_auth::DevinciClient;
 use leo_shared::MongoClient;
 use serde::Deserialize;
 use serde_json::json;
 use tera::{Context, Tera};
-use tokio::runtime::Runtime;
 
 #[derive(Deserialize)]
 struct Info {
     code: String,
 }
 
-#[derive(Deserialize)]
-struct Credentials {
-    username: String,
-    password: String,
+const URL: &str = "https://discord-esilv.devinci.fr";
+
+#[get("/adfs")]
+async fn adfs_result(tmpl: web::Data<tera::Tera>, info: web::Query<Info>, session: Session) -> Result<HttpResponse> {
+    let adfs_auth = ADFSAuth::new(URL);
+    let id = session.get::<u64>("id").unwrap_or(Some(0_u64)).unwrap_or_default();
+
+    if let Ok(token) = adfs_auth.get_token(&info.code).await {
+        if let Ok(bdd) = MongoClient::init().await {
+            if let Ok(mut u) = adfs_auth.get_devinci_user(&token).await {
+                if bdd.add_user(id, &mut u).await.is_ok() {
+                    let mut ctx = Context::new();
+                    send_id(id).await?;
+                    ctx.insert("message", "Vous pouvez retourner sur Discord!");
+    
+                    if let Ok(c) = tmpl.render("default.html", &ctx) {
+                        return Ok(HttpResponse::Ok().content_type("text/html").body(c));
+                    }
+                }
+            }
+        }
+    }
+    Ok(HttpResponse::Found()
+            .header(LOCATION, ADFSAuth::new(URL).generate_authorize_url())
+            .finish())
 }
 
 #[get("/register")]
@@ -34,7 +55,7 @@ async fn register(
     info: web::Query<Info>,
     session: Session,
 ) -> Result<HttpResponse> {
-    let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr/register");
+    let discord_auth = DiscordAuth::new(&format!("{}/register", URL));
 
     if let Ok(token) = discord_auth.get_token(&info.code).await {
         if let Ok(id) = discord_auth.get_id(&token).await {
@@ -47,12 +68,14 @@ async fn register(
                     tmpl.render("default.html", &ctx)
                 } else {
                     session.set("id", &parsed_id)?;
-                    tmpl.render("index.html", &Context::new())
+                    return Ok(HttpResponse::Found()
+                        .header(LOCATION, ADFSAuth::new(URL).generate_authorize_url())
+                        .finish());
                 };
                 return match content {
                     Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
                     Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
-                }
+                };
             }
         }
     }
@@ -60,48 +83,13 @@ async fn register(
     Ok(HttpResponse::Found().header(LOCATION, "/").finish())
 }
 
-#[post("/login")]
-async fn login(
-    tmpl: web::Data<tera::Tera>,
-    info: web::Form<Credentials>,
-    session: Session,
-) -> Result<HttpResponse> {
-    let id = session.get::<u64>("id").unwrap_or(Some(0_u64)).unwrap();
-
-    let bdd = MongoClient::init().await.unwrap();
-
-    let mut client = DevinciClient::new();
-
-    let rt = Runtime::new().unwrap();
-    let devinci_user = rt.block_on(async { client.login(&info.username, &info.password).await });
-
-    let content = if let Ok(mut u) = devinci_user {
-        let mut ctx = Context::new();
-        if bdd.add_user(id, &mut u).await.is_ok() {
-            send_id(id).await.unwrap();
-            ctx.insert("message", "Vous êtes déjà enregistré!");
-            tmpl.render("default.html", &ctx)
-        } else {
-            ctx.insert("credentials_error", &true);
-            tmpl.render("index.html", &ctx)
-        }
-    } else {
-        let mut ctx = Context::new();
-        ctx.insert("credentials_error", &true);
-        tmpl.render("index.html", &ctx)
-    };
-
-    match content {
-        Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
-        Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
-    }
-}
-
 #[get("/")]
 async fn index() -> Result<HttpResponse> {
-    let discord_auth = DiscordAuth::new("https://discord-esilv.devinci.fr/register");
     Ok(HttpResponse::Found()
-        .header(LOCATION, discord_auth.generate_authorize_url())
+        .header(
+            LOCATION,
+            DiscordAuth::new(&format!("{}/register", URL)).generate_authorize_url(),
+        )
         .finish())
 }
 
@@ -124,7 +112,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .wrap(CookieSession::signed(&[0; 32]).secure(false))
             .service(register)
-            .service(login)
+            .service(adfs_result)
             .service(index)
             .service(fs::Files::new("/static", "static").show_files_listing())
             .default_service(web::route().to(|| HttpResponse::NotFound()))
