@@ -1,0 +1,34 @@
+name: Release CI
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ v** ]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+      - name: Build
+        run: cargo build --release
+      - name: Release Linux
+        run: |
+          mkdir -p release
+          mv target/release/leo_website ./release/leo_website
+          mv target/release/leo_bot ./release/leo_bot
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: true
+          files: |
+              ./release/leo_bot
+              ./release/leo_website
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
