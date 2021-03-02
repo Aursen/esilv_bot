@@ -64,17 +64,18 @@ async fn register(
                 let user = bdd.get_user(parsed_id).await.unwrap_or(None);
                 let content = if user.is_some() {
                     let mut ctx = Context::new();
-                    ctx.insert("message", "Vous êtes déjà enregistré!");
+                    ctx.insert("message", "Vous êtes déjà enregistré! Vos rôles on été mis à jour!");
                     tmpl.render("default.html", &ctx)
+                    session.set("id", &parsed_id)?;
+                    match content {
+                        Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
+                        Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
+                    }
                 } else {
                     session.set("id", &parsed_id)?;
-                    return Ok(HttpResponse::Found()
+                    Ok(HttpResponse::Found()
                         .header(LOCATION, ADFSAuth::new(URL).generate_authorize_url())
-                        .finish());
-                };
-                return match content {
-                    Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
-                    Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
+                        .finish())
                 };
             }
         }
