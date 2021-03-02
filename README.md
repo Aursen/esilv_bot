@@ -1,4 +1,4 @@
-[![actions-badge][]][actions] [![rust 1.48.0+ badge]][rust 1.48.0+ link]
+[![actions-badge][]][actions] [![rust-badge]][rust-link]
 
 # Esilv Bot
  
@@ -6,5 +6,5 @@
 
 [actions]: https://github.com/Aursen/esilv_bot/actions
 [actions-badge]: https://github.com/Aursen/esilv_bot/actions/workflows/rust.yml/badge.svg
-[rust 1.48.0+ badge]: https://img.shields.io/badge/rust-1.48.0+-93450a.svg?style=flat-square
-[rust 1.48.0+ link]: https://blog.rust-lang.org/2020/11/19/Rust-1.48.html
+[rust-badge]: https://img.shields.io/badge/Rust-1.50.0+-93450a.svg
+[rust-link]: https://blog.rust-lang.org/2021/02/11/Rust-1.50.0.html
