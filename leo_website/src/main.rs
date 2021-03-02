@@ -62,20 +62,20 @@ async fn register(
             if let Ok(bdd) = MongoClient::init().await {
                 let parsed_id = id.parse::<u64>().unwrap_or(0);
                 let user = bdd.get_user(parsed_id).await.unwrap_or(None);
-                let content = if user.is_some() {
+                if user.is_some() {
+                    session.set("id", &parsed_id)?;
                     let mut ctx = Context::new();
                     ctx.insert("message", "Vous êtes déjà enregistré! Vos rôles on été mis à jour!");
-                    tmpl.render("default.html", &ctx)
-                    session.set("id", &parsed_id)?;
-                    match content {
+                    let content = tmpl.render("default.html", &ctx);
+                    return match content {
                         Ok(c) => Ok(HttpResponse::Ok().content_type("text/html").body(c)),
                         Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
-                    }
+                    };
                 } else {
                     session.set("id", &parsed_id)?;
-                    Ok(HttpResponse::Found()
+                    return Ok(HttpResponse::Found()
                         .header(LOCATION, ADFSAuth::new(URL).generate_authorize_url())
-                        .finish())
+                        .finish());
                 };
             }
         }
