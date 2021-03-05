@@ -137,3 +137,41 @@ async fn send_id(id: u64) -> Result<()> {
         .await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use actix_web::dev::Service;
+    use actix_web::{http, test, App, Error};
+
+    #[actix_rt::test]
+    async fn test_index() -> Result<(), Error> {
+        dotenv::dotenv().expect("Failed to load .env file.");
+
+        let app = App::new().service(index);
+        let mut app = test::init_service(app).await;
+
+        let req = test::TestRequest::get().uri("/").to_request();
+        let resp = app.call(req).await.unwrap();
+
+        assert_eq!(resp.status(), http::StatusCode::FOUND);
+
+        Ok(())
+    }
+
+    #[actix_rt::test]
+    async fn test_register() -> Result<(), Error> {
+        let tera = Tera::new("templates/**/*").unwrap();
+        dotenv::dotenv().expect("Failed to load .env file.");
+
+        let app = App::new().data(tera).service(register);
+        let mut app = test::init_service(app).await;
+
+        let req = test::TestRequest::get().uri("/register").to_request();
+        let resp = app.call(req).await.unwrap();
+
+        assert_eq!(resp.status(), http::StatusCode::BAD_REQUEST);
+
+        Ok(())
+    }
+}
