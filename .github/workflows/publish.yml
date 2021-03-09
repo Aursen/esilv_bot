@@ -41,4 +41,4 @@ jobs:
         with:
           draft: true
           files: |
-            /home/runner/work/esilv_bot/esilv_bot/${{ matrix.name }}-linux
+            ${{ matrix.name }}-linux
