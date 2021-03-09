@@ -1,6 +1,6 @@
 [package]
 name = "leo_website"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Aursen <jeanno11@live.fr>"]
 edition = "2018"
 
