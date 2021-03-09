@@ -27,19 +27,35 @@ const URL: &str = "https://discord-esilv.devinci.fr";
 #[get("/adfs")]
 async fn adfs_result(tmpl: web::Data<tera::Tera>, info: web::Query<Info>, session: Session) -> Result<HttpResponse> {
     let adfs_auth = ADFSAuth::new(URL);
-    let id = session.get::<u64>("id").unwrap_or(Some(0_u64)).unwrap_or_default();
+    let token = session.get::<String>("token").unwrap_or_default().unwrap_or_default();
+    let id = DiscordAuth::new(&format!("{}/register", URL)).get_id(&token).await;
 
     if let Ok(token) = adfs_auth.get_token(&info.code).await {
         if let Ok(bdd) = MongoClient::init().await {
             if let Ok(mut u) = adfs_auth.get_devinci_user(&token).await {
-                if bdd.add_user(id, &mut u).await.is_ok() {
-                    let mut ctx = Context::new();
-                    send_id(id).await?;
-                    ctx.insert("message", "Vous pouvez retourner sur Discord!");
-    
-                    if let Ok(c) = tmpl.render("default.html", &ctx) {
-                        return Ok(HttpResponse::Ok().content_type("text/html").body(c));
+                if let Ok(i) = id {
+                    let parsed_id = i.parse::<u64>().unwrap_or(0);
+                    if bdd.check_mail(u.get_mail()).await.unwrap_or(false) {
+                        if bdd.add_user(parsed_id, &mut u).await.is_ok() {
+                            let mut ctx = Context::new();
+                            send_id(parsed_id).await?;
+                            ctx.insert("message", "Vous pouvez retourner sur Discord!");
+            
+                            if let Ok(c) = tmpl.render("default.html", &ctx) {
+                                return Ok(HttpResponse::Ok().content_type("text/html").body(c));
+                            }
+                        }
+                    }else{
+                        let mut ctx = Context::new();
+                        ctx.insert("message", "Vous avez déjà votre compte devinci lié!");
+                        if let Ok(c) = tmpl.render("default.html", &ctx) {
+                            return Ok(HttpResponse::Ok().content_type("text/html").body(c));
+                        }
                     }
+                }else{
+                    return Ok(HttpResponse::Found()
+                    .header(LOCATION, "/")
+                    .finish())
                 }
             }
         }
@@ -63,7 +79,7 @@ async fn register(
                 let parsed_id = id.parse::<u64>().unwrap_or(0);
                 let user = bdd.get_user(parsed_id).await.unwrap_or(None);
                 if user.is_some() {
-                    session.set("id", &parsed_id)?;
+                    session.set("token", &token)?;
                     let mut ctx = Context::new();
                     ctx.insert("message", "Vous êtes déjà enregistré! Vos rôles on été mis à jour!");
                     let content = tmpl.render("default.html", &ctx);
@@ -72,7 +88,7 @@ async fn register(
                         Err(e) => Ok(HttpResponse::NotFound().body(e.to_string())),
                     };
                 } else {
-                    session.set("id", &parsed_id)?;
+                    session.set("token", &token)?;
                     return Ok(HttpResponse::Found()
                         .header(LOCATION, ADFSAuth::new(URL).generate_authorize_url())
                         .finish());

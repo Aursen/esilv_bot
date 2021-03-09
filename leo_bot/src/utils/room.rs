@@ -7,7 +7,7 @@ use serenity::model::voice::VoiceState;
 use serenity::{
     model::{
         permissions::Permissions,
-        prelude::{PermissionOverwrite, ChannelId, PermissionOverwriteType, RoleId},
+        prelude::{ChannelId, PermissionOverwrite, PermissionOverwriteType, RoleId},
     },
     prelude::*,
 };
@@ -46,9 +46,16 @@ pub async fn create_room(
         kind: PermissionOverwriteType::Role(RoleId(*config.roles.get("everyone").unwrap())),
     }];
 
+    let member = new.member.as_ref().unwrap();
+
+    let prof_name = member.nick
+        .as_ref()
+        .unwrap_or(&member.user.name)
+        .to_string();
+    
     let new_channel = guild
         .create_channel(&context, |c| {
-            c.name("Bureau")
+            c.name(format!("🔉 {}", prof_name))
                 .category(config.teacher_category)
                 .permissions(permissions_office)
                 .user_limit(2)
@@ -56,20 +63,14 @@ pub async fn create_room(
         })
         .await
         .unwrap();
-    let member = new.member.as_ref().unwrap();
+
     let waiting = guild
         .create_channel(&context, |c| {
-            c.name(
-                member
-                    .nick
-                    .as_ref()
-                    .unwrap_or(&member.user.name)
-                    .to_string(),
-            )
-            .category(config.teacher_category)
-            .permissions(permissions_waiting)
-            .user_limit(5)
-            .kind(ChannelType::Voice)
+            c.name(format!("⏳ {}", prof_name))
+                .category(config.teacher_category)
+                .permissions(permissions_waiting)
+                .user_limit(5)
+                .kind(ChannelType::Voice)
         })
         .await
         .unwrap();

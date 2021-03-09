@@ -50,10 +50,23 @@ impl MongoClient {
         Ok(Self { db })
     }
 
+    // Check if mail used
+    pub async fn check_mail(&self, mail: &str) -> Result<bool, Error> {
+        let collection = self.db.collection("users");
+        let doc = doc! { "mail": mail };
+
+        let user = collection.find_one(doc, None).await?;
+        match user {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+
     // Gets user in the database
     pub async fn get_user(&self, id: u64) -> Result<Option<DevinciUser>, Error> {
         let collection = self.db.collection("users");
         let doc = doc! { "discord_id": id };
+
         let user = collection.find_one(doc, None).await?;
         match user {
             Some(u) => Ok(Some(bson::from_document::<DevinciUser>(u)?)),

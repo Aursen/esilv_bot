@@ -35,6 +35,10 @@ impl DevinciUser {
         &self.func
     }
 
+    pub fn get_mail(&self) -> &str {
+        &self.mail
+    }
+
     pub fn get_name(&self) -> (&str, &str){
         (&self.first_name, &self.last_name)
     }
