@@ -36,6 +36,12 @@ async fn adfs_result(tmpl: web::Data<tera::Tera>, info: web::Query<Info>, sessio
                 if let Ok(i) = id {
                     let parsed_id = i.parse::<u64>().unwrap_or(0);
                     if bdd.check_mail(u.get_mail()).await.unwrap_or(false) {
+                        let mut ctx = Context::new();
+                        ctx.insert("message", "Vous avez déjà votre compte devinci lié!");
+                        if let Ok(c) = tmpl.render("default.html", &ctx) {
+                            return Ok(HttpResponse::Ok().content_type("text/html").body(c));
+                        }
+                    }else{
                         if bdd.add_user(parsed_id, &mut u).await.is_ok() {
                             let mut ctx = Context::new();
                             send_id(parsed_id).await?;
@@ -44,12 +50,6 @@ async fn adfs_result(tmpl: web::Data<tera::Tera>, info: web::Query<Info>, sessio
                             if let Ok(c) = tmpl.render("default.html", &ctx) {
                                 return Ok(HttpResponse::Ok().content_type("text/html").body(c));
                             }
-                        }
-                    }else{
-                        let mut ctx = Context::new();
-                        ctx.insert("message", "Vous avez déjà votre compte devinci lié!");
-                        if let Ok(c) = tmpl.render("default.html", &ctx) {
-                            return Ok(HttpResponse::Ok().content_type("text/html").body(c));
                         }
                     }
                 }else{
