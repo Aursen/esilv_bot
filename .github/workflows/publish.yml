@@ -41,5 +41,4 @@ jobs:
         with:
           draft: true
           files: |
-            leo_bot-linux
-            leo_website-linux
+            ${{ matrix.name }}-linux
