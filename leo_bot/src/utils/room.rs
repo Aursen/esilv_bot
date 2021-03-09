@@ -55,7 +55,7 @@ pub async fn create_room(
     
     let new_channel = guild
         .create_channel(&context, |c| {
-            c.name(format!("🔉 {}", prof_name))
+            c.name(format!("🔊 {}", prof_name))
                 .category(config.teacher_category)
                 .permissions(permissions_office)
                 .user_limit(2)
