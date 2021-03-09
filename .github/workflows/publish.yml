@@ -34,6 +34,8 @@ jobs:
           path: ${{ matrix.artifact_name }}
       - name: Download artifacts
         uses: actions/download-artifact@v2
+        with:
+          name: ${{ matrix.name }}-linux
       - name: Release
         uses: softprops/action-gh-release@v1
         env:
@@ -41,4 +43,4 @@ jobs:
         with:
           draft: true
           files: |
-            ${{ matrix.name }}-linux
+            /home/runner/work/esilv_bot/esilv_bot/${{ matrix.name }}-linux
