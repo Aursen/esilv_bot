@@ -12,15 +12,21 @@ pub struct Room {
     discord_id: i64,
     office_id: i64,
     waiting_id: i64,
+    text_id: i64
 }
 
 impl Room {
-    pub fn new(discord_id: u64, office_id: u64, waiting_id: u64) -> Self {
+    pub fn new(discord_id: u64, office_id: u64, waiting_id: u64, text_id: u64) -> Self {
         Self {
             discord_id: discord_id as i64,
             office_id: office_id as i64,
             waiting_id: waiting_id as i64,
+            text_id: text_id as i64
         }
+    }
+
+    pub fn get_user_id(&self) -> u64 {
+        self.discord_id as u64
     }
 
     pub fn get_office_id(&self) -> u64 {
@@ -29,6 +35,10 @@ impl Room {
 
     pub fn get_waiting_id(&self) -> u64 {
         self.waiting_id as u64
+    }
+
+    pub fn get_text_id(&self) -> u64 {
+        self.text_id as u64
     }
 }
 
@@ -85,9 +95,19 @@ impl MongoClient {
     }
 
     // Gets room in the database
-    pub async fn get_room(&self, discord_id: u64) -> Result<Option<Room>, Error> {
+    pub async fn get_room_by_user(&self, discord_id: u64) -> Result<Option<Room>, Error> {
         let collection = self.db.collection("rooms");
         let doc = doc! { "discord_id": discord_id };
+        let room = collection.find_one(doc.clone(), None).await?;
+        match room {
+            Some(r) => Ok(Some(bson::from_document::<Room>(r)?)),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn get_room_by_channel(&self, channel_id: u64) -> Result<Option<Room>, Error> {
+        let collection = self.db.collection("rooms");
+        let doc = doc! { "office_id": channel_id };
         let room = collection.find_one(doc.clone(), None).await?;
         match room {
             Some(r) => Ok(Some(bson::from_document::<Room>(r)?)),
@@ -119,11 +139,12 @@ mod tests {
 
     #[test]
     fn serialize_deserialize_room_test() {
-        let room = Room::new(0, 0, 0);
+        let room = Room::new(0, 0, 0, 0);
         let new_room = bson::from_document::<Room>(bson::to_document(&room).unwrap()).unwrap();
 
         assert_eq!(0, new_room.get_office_id());
         assert_eq!(0, new_room.get_waiting_id());
+        assert_eq!(0, new_room.get_text_id());
     }
 
     #[test]

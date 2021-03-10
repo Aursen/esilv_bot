@@ -18,6 +18,7 @@ pub async fn remove_room(context: &Context, db: &MongoClient, room: &Room) {
     let _ = db.remove_room(room).await;
     let _ = ChannelId(room.get_office_id()).delete(&context).await;
     let _ = ChannelId(room.get_waiting_id()).delete(&context).await;
+    let _ = ChannelId(room.get_text_id()).delete(&context).await;
 }
 
 // Uses to create room in bdd and in Discord
@@ -28,6 +29,19 @@ pub async fn create_room(
     config: RwLockReadGuard<'_, Config>,
 ) {
     let permissions_office = vec![
+        PermissionOverwrite {
+            allow: Permissions::READ_MESSAGES,
+            deny: Permissions::default(),
+            kind: PermissionOverwriteType::Member(new.user_id),
+        },
+        PermissionOverwrite {
+            allow: Permissions::READ_MESSAGES,
+            deny: Permissions::CONNECT,
+            kind: PermissionOverwriteType::Role(RoleId(*config.roles.get("everyone").unwrap())),
+        },
+    ];
+
+    let permissions_text = vec![
         PermissionOverwrite {
             allow: Permissions::READ_MESSAGES,
             deny: Permissions::default(),
@@ -48,11 +62,11 @@ pub async fn create_room(
 
     let member = new.member.as_ref().unwrap();
 
-    let prof_name = member.nick
+    let prof_name = member
+        .nick
         .as_ref()
         .unwrap_or(&member.user.name)
         .to_string();
-    
     let new_channel = guild
         .create_channel(&context, |c| {
             c.name(format!("🔊 {}", prof_name))
@@ -60,6 +74,15 @@ pub async fn create_room(
                 .permissions(permissions_office)
                 .user_limit(2)
                 .kind(ChannelType::Voice)
+        })
+        .await
+        .unwrap();
+    let text_channel = guild
+        .create_channel(&context, |c| {
+            c.name(format!("💬 {}", prof_name))
+                .category(config.teacher_category)
+                .permissions(permissions_text)
+                .kind(ChannelType::Text)
         })
         .await
         .unwrap();
@@ -81,7 +104,12 @@ pub async fn create_room(
 
     let bdd_result = MongoClient::init().await;
 
-    let room = Room::new(new.user_id.0, new_channel.id.0, waiting.id.0);
+    let room = Room::new(
+        new.user_id.0,
+        new_channel.id.0,
+        waiting.id.0,
+        text_channel.id.0,
+    );
 
     if let Ok(bdd) = bdd_result {
         let _ = bdd.add_room(&room).await;

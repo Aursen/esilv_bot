@@ -1,8 +1,8 @@
 mod commands;
 mod utils;
 
-use crate::utils::room::{create_room,remove_room};
-use leo_shared::{MongoClient, user::DevinciType};
+use crate::utils::room::{create_room, remove_room};
+use leo_shared::{user::DevinciType, MongoClient};
 use serenity::{
     async_trait,
     client::bridge::gateway::{GatewayIntents, ShardManager},
@@ -13,13 +13,19 @@ use serenity::{
         event::ResumedEvent,
         gateway::Ready,
         permissions::Permissions,
+        prelude::{
+            ChannelId, GuildId, Message, PermissionOverwrite, PermissionOverwriteType, Reaction,
+            RoleId,
+        },
         voice::VoiceState,
-        prelude::{Message,GuildId,ChannelId, PermissionOverwrite, PermissionOverwriteType, Reaction, RoleId},
     },
     prelude::*,
 };
-use std::{collections::{HashSet,HashMap}, env, sync::Arc};
-
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    sync::Arc,
+};
 
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -120,7 +126,7 @@ impl EventHandler for Handler {
         &self,
         context: Context,
         guild_id: Option<GuildId>,
-        _: Option<VoiceState>,
+        old: Option<VoiceState>,
         new: VoiceState,
     ) {
         let config_lock = {
@@ -135,10 +141,10 @@ impl EventHandler for Handler {
 
         if let Some(guild) = guild_id {
             if let Some(channel) = &new.channel_id {
-                if channel.0 == config.room {
-                    let bdd_result = MongoClient::init().await;
-                    if let Ok(bdd) = bdd_result {
-                        let room = bdd.get_room(new.user_id.0).await.unwrap_or(None);
+                let bdd_result = MongoClient::init().await;
+                if let Ok(bdd) = bdd_result {
+                    if channel.0 == config.room {
+                        let room = bdd.get_room_by_user(new.user_id.0).await.unwrap_or(None);
                         if let Some(r) = room {
                             let _ = guild
                                 .move_member(&context, new.user_id, r.get_office_id())
@@ -147,14 +153,45 @@ impl EventHandler for Handler {
                             create_room(&context, guild, &new, config).await;
                         }
                     }
+
+                    if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None) {
+                        let _ = ChannelId(room.get_text_id()).create_permission(
+                            &context,
+                            &PermissionOverwrite {
+                                allow: Permissions::SEND_MESSAGES,
+                                deny: Permissions::default(),
+                                kind: PermissionOverwriteType::Member(new.user_id),
+                            },
+                        );
+                    }
+                }
+            }
+
+            if let Some(o) = old {
+                if let Some(channel) = o.channel_id {
+                    let bdd_result = MongoClient::init().await;
+                    if let Ok(bdd) = bdd_result {
+                        if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None)
+                        {
+                            if o.user_id != room.get_user_id() {
+                                let _ = ChannelId(room.get_text_id()).create_permission(
+                                    &context,
+                                    &PermissionOverwrite {
+                                        allow: Permissions::default(),
+                                        deny: Permissions::SEND_MESSAGES,
+                                        kind: PermissionOverwriteType::Member(o.user_id),
+                                    },
+                                );
+                            }
+                        }
+                    }
                 }
             }
 
             if new.channel_id.is_none() {
                 let bdd_result = MongoClient::init().await;
                 if let Ok(bdd) = bdd_result {
-                    let room = bdd.get_room(new.user_id.0).await.unwrap_or(None);
-                    if let Some(r) = room {
+                    if let Some(r) = bdd.get_room_by_user(new.user_id.0).await.unwrap_or(None) {
                         remove_room(&context, &bdd, &r).await;
                     }
                 }
@@ -206,7 +243,6 @@ impl EventHandler for Handler {
             }
         }
     }
-    
     async fn ready(&self, _: Context, ready: Ready) {
         info!("Connected as {}", ready.user.name);
     }
@@ -305,4 +341,3 @@ async fn main() {
         error!("Client error: {:?}.", why);
     }
 }
-
