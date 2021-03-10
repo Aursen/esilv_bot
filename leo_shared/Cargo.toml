@@ -1,6 +1,6 @@
 [package]
 name = "leo_shared"
-version = "0.2.4"
+version = "0.3.0"
 authors = ["Aursen <jeanno11@live.fr>"]
 edition = "2018"
 
