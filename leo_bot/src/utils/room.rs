@@ -1,13 +1,11 @@
 use crate::Config;
-use leo_shared::MongoClient;
-use leo_shared::Room;
-use serenity::model::channel::ChannelType;
-use serenity::model::prelude::GuildId;
-use serenity::model::voice::VoiceState;
+use leo_shared::{MongoClient, room::Room};
 use serenity::{
     model::{
+        channel::ChannelType,
+        voice::VoiceState,
         permissions::Permissions,
-        prelude::{ChannelId, PermissionOverwrite, PermissionOverwriteType, RoleId},
+        prelude::{ChannelId, PermissionOverwrite, PermissionOverwriteType, RoleId, GuildId},
     },
     prelude::*,
 };
@@ -35,8 +33,8 @@ pub async fn create_room(
             kind: PermissionOverwriteType::Member(new.user_id),
         },
         PermissionOverwrite {
-            allow: Permissions::READ_MESSAGES,
-            deny: Permissions::CONNECT,
+            allow: Permissions::default(),
+            deny: Permissions::READ_MESSAGES,
             kind: PermissionOverwriteType::Role(RoleId(*config.roles.get("everyone").unwrap())),
         },
     ];
@@ -89,7 +87,7 @@ pub async fn create_room(
 
     let waiting = guild
         .create_channel(&context, |c| {
-            c.name(format!("⏳ {}", prof_name))
+            c.name(format!("🆗 {}", prof_name))
                 .category(config.teacher_category)
                 .permissions(permissions_waiting)
                 .user_limit(5)

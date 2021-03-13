@@ -155,14 +155,25 @@ impl EventHandler for Handler {
                     }
 
                     if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None) {
-                        let _ = ChannelId(room.get_text_id()).create_permission(
-                            &context,
-                            &PermissionOverwrite {
-                                allow: Permissions::SEND_MESSAGES,
-                                deny: Permissions::default(),
-                                kind: PermissionOverwriteType::Member(new.user_id),
-                            },
-                        );
+                        if let Ok(member) = guild.member(&context, room.get_user_id()).await {
+                            let _ = ChannelId(room.get_text_id()).create_permission(
+                                &context,
+                                &PermissionOverwrite {
+                                    allow: Permissions::SEND_MESSAGES,
+                                    deny: Permissions::default(),
+                                    kind: PermissionOverwriteType::Member(new.user_id),
+                                },
+                            );
+
+                            let _ = ChannelId(room.get_waiting_id())
+                                .edit(&context, |c| {
+                                    c.name(format!(
+                                        "⏳ {}",
+                                        member.nick.unwrap_or(member.user.name)
+                                    ))
+                                })
+                                .await;
+                        }
                     }
                 }
             }
@@ -174,14 +185,26 @@ impl EventHandler for Handler {
                         if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None)
                         {
                             if o.user_id != room.get_user_id() {
-                                let _ = ChannelId(room.get_text_id()).create_permission(
-                                    &context,
-                                    &PermissionOverwrite {
-                                        allow: Permissions::default(),
-                                        deny: Permissions::SEND_MESSAGES,
-                                        kind: PermissionOverwriteType::Member(o.user_id),
-                                    },
-                                );
+                                if let Ok(member) = guild.member(&context, room.get_user_id()).await
+                                {
+                                    let _ = ChannelId(room.get_text_id()).create_permission(
+                                        &context,
+                                        &PermissionOverwrite {
+                                            allow: Permissions::default(),
+                                            deny: Permissions::SEND_MESSAGES,
+                                            kind: PermissionOverwriteType::Member(o.user_id),
+                                        },
+                                    );
+
+                                    let _ = ChannelId(room.get_waiting_id())
+                                        .edit(&context, |c| {
+                                            c.name(format!(
+                                                "🆗 {}",
+                                                member.nick.unwrap_or(member.user.name)
+                                            ))
+                                        })
+                                        .await;
+                                }
                             }
                         }
                     }
