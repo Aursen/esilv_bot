@@ -1,8 +1,16 @@
 [![actions-badge][]][actions] [![rust-badge]][rust-link]
 
-# Esilv Bot
- 
- TODO
+ <h1 align="center">
+  <br>
+   <img src="/static/esilv.png"/>
+  <br>
+  ESILV bot
+</h1>
+
+## Introduction
+
+This project represents the bot and the website needed for the ESILV Discord.
+An experiment aimed at improving communication about course content between students and teachers.
 
 [actions]: https://github.com/Aursen/esilv_bot/actions
 [actions-badge]: https://github.com/Aursen/esilv_bot/actions/workflows/rust.yml/badge.svg
