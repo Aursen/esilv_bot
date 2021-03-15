@@ -1,0 +1,34 @@
+name: Dev
+
+on:
+  push:
+    tags: [ d** ]
+jobs:
+  publish:
+    name: Publish for ${{ matrix.name }}
+    runs-on: ubuntu-18.04
+    strategy:
+        matrix:
+          name: [leo_bot, leo_website]
+          include:
+            - name: leo_bot
+              artifact_name: target/release/leo_bot
+              asset_name: leo_bot-linux
+            - name: leo_website
+              artifact_name: target/release/leo_website
+              asset_name: leo_website-linux
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+      - name: Build
+        run: cargo build --release
+      - name: Upload binaries to release
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.artifact_name }}
