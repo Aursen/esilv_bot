@@ -334,12 +334,6 @@ async fn main() {
     let mut client = Client::builder(&token)
         .framework(framework)
         .event_handler(Handler)
-        .intents(
-            GatewayIntents::GUILD_MESSAGE_REACTIONS
-                | GatewayIntents::GUILD_VOICE_STATES
-                | GatewayIntents::GUILD_MEMBERS
-                | GatewayIntents::GUILD_MESSAGES,
-        ) // Commands are disabled
         .await
         .expect("Err creating client.");
 
