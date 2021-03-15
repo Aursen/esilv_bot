@@ -1,8 +1,5 @@
 name: Dev
-
-on:
-  push:
-    tags: [ d** ]
+on: workflow_dispatch
 jobs:
   publish:
     name: Publish for ${{ matrix.name }}
