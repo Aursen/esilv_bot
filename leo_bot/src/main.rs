@@ -1,15 +1,14 @@
 mod commands;
 mod utils;
 
-use crate::utils::room::{create_room, remove_room};
+use crate::utils::{room::{create_room, remove_room}, subject::{open_subject_channel, close_subject_channel}};
 use leo_shared::{user::DevinciType, MongoClient};
 use serenity::{
     async_trait,
-    client::bridge::gateway::{GatewayIntents, ShardManager},
+    client::bridge::gateway::ShardManager,
     framework::{standard::macros::group, StandardFramework},
     http::Http,
     model::{
-        channel::ReactionType,
         event::ResumedEvent,
         gateway::Ready,
         permissions::Permissions,
@@ -58,29 +57,9 @@ impl EventHandler for Handler {
             .subjects
             .iter()
             .find(|e| e.id == reaction.message_id.0);
+
         if let Some(s) = subject {
-            let emoji = match reaction.emoji {
-                ReactionType::Custom {
-                    id: _,
-                    animated: _,
-                    name,
-                } => name,
-                ReactionType::Unicode(c) => Some(c),
-                _ => None,
-            };
-            if let Some(e) = emoji {
-                if let Some(c) = s.channels.get(&e) {
-                    if let Some(u) = reaction.user_id {
-                        let allow = Permissions::READ_MESSAGES;
-                        let overwrite = PermissionOverwrite {
-                            allow,
-                            deny: Permissions::default(),
-                            kind: PermissionOverwriteType::Member(u),
-                        };
-                        let _ = ChannelId(*c).create_permission(&context, &overwrite).await;
-                    }
-                }
-            }
+            open_subject_channel(&context, reaction, s).await;
         }
     }
 
@@ -101,24 +80,7 @@ impl EventHandler for Handler {
             .find(|e| e.id == reaction.message_id.0);
 
         if let Some(s) = subject {
-            let emoji = match reaction.emoji {
-                ReactionType::Custom {
-                    id: _,
-                    animated: _,
-                    name,
-                } => name,
-                ReactionType::Unicode(c) => Some(c),
-                _ => None,
-            };
-            if let Some(e) = emoji {
-                if let Some(c) = s.channels.get(&e) {
-                    if let Some(u) = reaction.user_id {
-                        let _ = ChannelId(*c)
-                            .delete_permission(&context, PermissionOverwriteType::Member(u))
-                            .await;
-                    }
-                }
-            }
+            close_subject_channel(&context, reaction, s).await;
         }
     }
 
@@ -184,28 +146,27 @@ impl EventHandler for Handler {
                     if let Ok(bdd) = bdd_result {
                         if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None)
                         {
-                            if o.user_id != room.get_user_id() {
-                                if let Ok(member) = guild.member(&context, room.get_user_id()).await
-                                {
-                                    let _ = ChannelId(room.get_text_id()).create_permission(
-                                        &context,
-                                        &PermissionOverwrite {
-                                            allow: Permissions::default(),
-                                            deny: Permissions::SEND_MESSAGES,
-                                            kind: PermissionOverwriteType::Member(o.user_id),
-                                        },
-                                    );
+                            // if o.user_id != room.get_user_id() {
+                            if let Ok(member) = guild.member(&context, room.get_user_id()).await {
+                                let _ = ChannelId(room.get_text_id()).create_permission(
+                                    &context,
+                                    &PermissionOverwrite {
+                                        allow: Permissions::default(),
+                                        deny: Permissions::SEND_MESSAGES,
+                                        kind: PermissionOverwriteType::Member(o.user_id),
+                                    },
+                                );
 
-                                    let _ = ChannelId(room.get_waiting_id())
-                                        .edit(&context, |c| {
-                                            c.name(format!(
-                                                "🆗 {}",
-                                                member.nick.unwrap_or(member.user.name)
-                                            ))
-                                        })
-                                        .await;
-                                }
+                                let _ = ChannelId(room.get_waiting_id())
+                                    .edit(&context, |c| {
+                                        c.name(format!(
+                                            "🆗 {}",
+                                            member.nick.unwrap_or(member.user.name)
+                                        ))
+                                    })
+                                    .await;
                             }
+                            //}
                         }
                     }
                 }

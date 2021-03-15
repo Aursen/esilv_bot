@@ -26,20 +26,7 @@ pub async fn create_room(
     new: &VoiceState,
     config: RwLockReadGuard<'_, Config>,
 ) {
-    let permissions_office = vec![
-        PermissionOverwrite {
-            allow: Permissions::READ_MESSAGES,
-            deny: Permissions::default(),
-            kind: PermissionOverwriteType::Member(new.user_id),
-        },
-        PermissionOverwrite {
-            allow: Permissions::default(),
-            deny: Permissions::READ_MESSAGES,
-            kind: PermissionOverwriteType::Role(RoleId(*config.roles.get("everyone").unwrap())),
-        },
-    ];
-
-    let permissions_text = vec![
+    let permissions = vec![
         PermissionOverwrite {
             allow: Permissions::READ_MESSAGES,
             deny: Permissions::default(),
@@ -69,7 +56,7 @@ pub async fn create_room(
         .create_channel(&context, |c| {
             c.name(format!("🔊 {}", prof_name))
                 .category(config.teacher_category)
-                .permissions(permissions_office)
+                .permissions(permissions.clone())
                 .user_limit(2)
                 .kind(ChannelType::Voice)
         })
@@ -79,7 +66,7 @@ pub async fn create_room(
         .create_channel(&context, |c| {
             c.name(format!("💬 {}", prof_name))
                 .category(config.teacher_category)
-                .permissions(permissions_text)
+                .permissions(permissions)
                 .kind(ChannelType::Text)
         })
         .await
