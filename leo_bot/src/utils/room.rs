@@ -74,7 +74,7 @@ pub async fn create_room(
 
     let waiting = guild
         .create_channel(&context, |c| {
-            c.name(format!("🆗 {}", prof_name))
+            c.name(format!("⏳ {}", prof_name))
                 .category(config.teacher_category)
                 .permissions(permissions_waiting)
                 .user_limit(5)

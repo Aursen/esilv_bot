@@ -126,7 +126,7 @@ impl EventHandler for Handler {
                     }
 
                     if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None) {
-                        if let Ok(member) = guild.member(&context, room.get_user_id()).await {
+                        //if let Ok(member) = guild.member(&context, room.get_user_id()).await {
                             let _ = ChannelId(room.get_text_id()).create_permission(
                                 &context,
                                 &PermissionOverwrite {
@@ -136,15 +136,15 @@ impl EventHandler for Handler {
                                 },
                             );
 
-                            let _ = ChannelId(room.get_waiting_id())
-                                .edit(&context, |c| {
-                                    c.name(format!(
-                                        "⏳ {}",
-                                        member.nick.unwrap_or(member.user.name)
-                                    ))
-                                })
-                                .await;
-                        }
+                            // let _ = ChannelId(room.get_waiting_id())
+                            //     .edit(&context, |c| {
+                            //         c.name(format!(
+                            //             "⏳ {}",
+                            //             member.nick.unwrap_or(member.user.name)
+                            //         ))
+                            //     })
+                            //     .await;
+                        //}
                     }
                 }
             }
@@ -156,7 +156,7 @@ impl EventHandler for Handler {
                         if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None)
                         {
                             // if o.user_id != room.get_user_id() {
-                            if let Ok(member) = guild.member(&context, room.get_user_id()).await {
+                            //if let Ok(member) = guild.member(&context, room.get_user_id()).await {
                                 let _ = ChannelId(room.get_text_id()).create_permission(
                                     &context,
                                     &PermissionOverwrite {
@@ -166,15 +166,15 @@ impl EventHandler for Handler {
                                     },
                                 );
 
-                                let _ = ChannelId(room.get_waiting_id())
-                                    .edit(&context, |c| {
-                                        c.name(format!(
-                                            "🆗 {}",
-                                            member.nick.unwrap_or(member.user.name)
-                                        ))
-                                    })
-                                    .await;
-                            }
+                                // let _ = ChannelId(room.get_waiting_id())
+                                //     .edit(&context, |c| {
+                                //         c.name(format!(
+                                //             "🆗 {}",
+                                //             member.nick.unwrap_or(member.user.name)
+                                //         ))
+                                //     })
+                                //     .await;
+                            //}
                             //}
                         }
                     }
