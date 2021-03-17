@@ -1,7 +1,10 @@
 mod commands;
 mod utils;
 
-use crate::utils::{room::{create_room, remove_room}, subject::{open_subject_channel, close_subject_channel}};
+use crate::utils::{
+    room::{create_room, remove_room},
+    subject::{close_subject_channel, open_subject_channel},
+};
 use leo_shared::{user::DevinciType, MongoClient};
 use serenity::{
     async_trait,
@@ -44,8 +47,10 @@ struct Handler;
 impl EventHandler for Handler {
     async fn reaction_add(&self, context: Context, reaction: Reaction) {
         let config_lock = {
-            let data_read = context.data.read().await;
-            data_read
+            context
+                .data
+                .read()
+                .await
                 .get::<ExternalConfig>()
                 .expect("Expected Config in TypeMap.")
                 .clone()
@@ -65,8 +70,10 @@ impl EventHandler for Handler {
 
     async fn reaction_remove(&self, context: Context, reaction: Reaction) {
         let config_lock = {
-            let data_read = context.data.read().await;
-            data_read
+            context
+                .data
+                .read()
+                .await
                 .get::<ExternalConfig>()
                 .expect("Expected Config in TypeMap.")
                 .clone()
@@ -92,8 +99,10 @@ impl EventHandler for Handler {
         new: VoiceState,
     ) {
         let config_lock = {
-            let data_read = context.data.read().await;
-            data_read
+            context
+                .data
+                .read()
+                .await
                 .get::<ExternalConfig>()
                 .expect("Expected Config in TypeMap.")
                 .clone()
@@ -185,8 +194,9 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: Context, new_message: Message) {
         let config_lock = {
-            let data_read = ctx.data.read().await;
-            data_read
+            ctx.data
+                .read()
+                .await
                 .get::<ExternalConfig>()
                 .expect("Expected Config in TypeMap.")
                 .clone()
