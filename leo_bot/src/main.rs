@@ -1,9 +1,13 @@
 mod commands;
+mod models;
 mod utils;
 
-use crate::utils::{
-    room::{create_room, remove_room},
-    subject::{close_subject_channel, open_subject_channel},
+use crate::{
+    models::{config::Config, room::Room},
+    utils::{
+        offices::{create_room, handle_teacher_leaving},
+        subject::{close_subject_channel, open_subject_channel},
+    },
 };
 use leo_shared::{user::DevinciType, MongoClient};
 use serenity::{
@@ -24,7 +28,7 @@ use serenity::{
     prelude::*,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     env,
     sync::Arc,
 };
@@ -33,7 +37,6 @@ use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 use commands::owner::*;
-use serde::{Deserialize, Serialize};
 
 pub struct ShardManagerContainer;
 
@@ -107,86 +110,61 @@ impl EventHandler for Handler {
                 .expect("Expected Config in TypeMap.")
                 .clone()
         };
-
         let config = config_lock.read().await;
 
+        let _ = handle_teacher_leaving(&context, &new).await;
+
+        let lock = get_room_lock(&context).await;
+        let room_storage = lock.read().await;
+
+        //TODO Clean this up but I don't have enough time
         if let Some(guild) = guild_id {
             if let Some(channel) = &new.channel_id {
-                let bdd_result = MongoClient::init().await;
-                if let Ok(bdd) = bdd_result {
-                    if channel.0 == config.room {
-                        let room = bdd.get_room_by_user(new.user_id.0).await.unwrap_or(None);
-                        if let Some(r) = room {
-                            let _ = guild
-                                .move_member(&context, new.user_id, r.get_office_id())
-                                .await;
-                        } else {
-                            create_room(&context, guild, &new, config).await;
+                if channel.0 == config.room {
+                    if let Some(room) = room_storage
+                        .iter()
+                        .find(|e| e.get_user_id() == new.user_id.0)
+                    {
+                        let _ = guild
+                            .move_member(&context, new.user_id, room.get_office_id())
+                            .await;
+                        return;
+                    } else {
+                        if let Ok(room) = create_room(&context, guild, &new, config).await {
+                            drop(room_storage);
+                            let mut room_storage = lock.write().await;
+                            room_storage.push(room);
                         }
-                    }
-
-                    if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None) {
-                        //if let Ok(member) = guild.member(&context, room.get_user_id()).await {
-                            let _ = ChannelId(room.get_text_id()).create_permission(
-                                &context,
-                                &PermissionOverwrite {
-                                    allow: Permissions::SEND_MESSAGES,
-                                    deny: Permissions::default(),
-                                    kind: PermissionOverwriteType::Member(new.user_id),
-                                },
-                            );
-
-                            // let _ = ChannelId(room.get_waiting_id())
-                            //     .edit(&context, |c| {
-                            //         c.name(format!(
-                            //             "⏳ {}",
-                            //             member.nick.unwrap_or(member.user.name)
-                            //         ))
-                            //     })
-                            //     .await;
-                        //}
+                        return;
                     }
                 }
-            }
 
-            if let Some(o) = old {
-                if let Some(channel) = o.channel_id {
-                    let bdd_result = MongoClient::init().await;
-                    if let Ok(bdd) = bdd_result {
-                        if let Some(room) = bdd.get_room_by_channel(channel.0).await.unwrap_or(None)
-                        {
-                            // if o.user_id != room.get_user_id() {
-                            //if let Ok(member) = guild.member(&context, room.get_user_id()).await {
-                                let _ = ChannelId(room.get_text_id()).create_permission(
-                                    &context,
-                                    &PermissionOverwrite {
-                                        allow: Permissions::default(),
-                                        deny: Permissions::SEND_MESSAGES,
-                                        kind: PermissionOverwriteType::Member(o.user_id),
-                                    },
-                                );
-
-                                // let _ = ChannelId(room.get_waiting_id())
-                                //     .edit(&context, |c| {
-                                //         c.name(format!(
-                                //             "🆗 {}",
-                                //             member.nick.unwrap_or(member.user.name)
-                                //         ))
-                                //     })
-                                //     .await;
-                            //}
-                            //}
-                        }
-                    }
+                if let Some(room) = room_storage.iter().find(|e| e.get_office_id() == channel.0) {
+                    let _ = ChannelId(room.get_text_id()).create_permission(
+                        &context,
+                        &PermissionOverwrite {
+                            allow: Permissions::SEND_MESSAGES,
+                            deny: Permissions::default(),
+                            kind: PermissionOverwriteType::Member(new.user_id),
+                        },
+                    );
+                    return;
                 }
             }
+        }
 
-            if new.channel_id.is_none() {
-                let bdd_result = MongoClient::init().await;
-                if let Ok(bdd) = bdd_result {
-                    if let Some(r) = bdd.get_room_by_user(new.user_id.0).await.unwrap_or(None) {
-                        remove_room(&context, &bdd, &r).await;
-                    }
+        if let Some(o) = old {
+            if let Some(channel) = o.channel_id {
+                if let Some(room) = room_storage.iter().find(|e| e.get_office_id() == channel.0) {
+                    let _ = ChannelId(room.get_text_id()).create_permission(
+                        &context,
+                        &PermissionOverwrite {
+                            allow: Permissions::default(),
+                            deny: Permissions::SEND_MESSAGES,
+                            kind: PermissionOverwriteType::Member(o.user_id),
+                        },
+                    );
+                    return;
                 }
             }
         }
@@ -246,25 +224,14 @@ impl EventHandler for Handler {
     }
 }
 
-struct ExternalConfig;
+pub struct RoomStorage;
+impl TypeMapKey for RoomStorage {
+    type Value = Arc<RwLock<Vec<Room>>>;
+}
 
+struct ExternalConfig;
 impl TypeMapKey for ExternalConfig {
     type Value = Arc<RwLock<Config>>;
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct Config {
-    roles: HashMap<String, u64>,
-    webhook: u64,
-    room: u64,
-    teacher_category: u64,
-    subjects: Vec<SubjectsMessage>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub struct SubjectsMessage {
-    id: u64,
-    channels: HashMap<String, u64>,
 }
 
 #[group]
@@ -312,8 +279,16 @@ async fn main() {
         let mut data = client.data.write().await;
         data.insert::<ShardManagerContainer>(client.shard_manager.clone());
 
-        let config: Config = serde_json::from_str(include_str!("config.json")).unwrap();
+        let config_file = if cfg!(debug_assertions) {
+            include_str!("config-dev.json")
+        } else {
+            include_str!("config.json")
+        };
+
+        let config: Config = serde_json::from_str(config_file).unwrap();
         data.insert::<ExternalConfig>(Arc::new(RwLock::new(config)));
+
+        data.insert::<RoomStorage>(Arc::new(RwLock::new(Vec::new())));
     }
 
     let shard_manager = client.shard_manager.clone();
@@ -328,4 +303,12 @@ async fn main() {
     if let Err(why) = client.start().await {
         error!("Client error: {:?}.", why);
     }
+}
+
+pub async fn get_room_lock(context: &Context) -> Arc<RwLock<Vec<Room>>> {
+    let data_read = context.data.read().await;
+    data_read
+        .get::<RoomStorage>()
+        .expect("Expected RoomStorage in TypeMap.")
+        .clone()
 }

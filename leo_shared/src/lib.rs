@@ -1,9 +1,8 @@
 pub mod user;
-pub mod room;
 
-use crate::{user::DevinciUser, room::Room};
+use crate::user::DevinciUser;
 use mongodb::{
-    bson::doc, error::Error, options::ClientOptions, results::DeleteResult, Client, Database,
+    bson::doc, error::Error, options::ClientOptions, Client, Database,
 };
 use std::env;
 
@@ -58,59 +57,12 @@ impl MongoClient {
             .await?;
         Ok(())
     }
-
-    // Gets room in the database
-    pub async fn get_room_by_user(&self, discord_id: u64) -> Result<Option<Room>, Error> {
-        let collection = self.db.collection("rooms");
-        let doc = doc! { "discord_id": discord_id };
-        let room = collection.find_one(doc.clone(), None).await?;
-        match room {
-            Some(r) => Ok(Some(bson::from_document::<Room>(r)?)),
-            None => Ok(None),
-        }
-    }
-
-    pub async fn get_room_by_channel(&self, channel_id: u64) -> Result<Option<Room>, Error> {
-        let collection = self.db.collection("rooms");
-        let doc = doc! { "office_id": channel_id };
-        let room = collection.find_one(doc.clone(), None).await?;
-        match room {
-            Some(r) => Ok(Some(bson::from_document::<Room>(r)?)),
-            None => Ok(None),
-        }
-    }
-
-    // Adds room in the database
-    pub async fn add_room(&self, room: &Room) -> Result<(), Error> {
-        let collection = self.db.collection("rooms");
-        collection
-            .insert_one(bson::to_document(room)?, None)
-            .await?;
-        Ok(())
-    }
-
-    // Removes room in the database
-    pub async fn remove_room(&self, room: &Room) -> Result<DeleteResult, Error> {
-        let collection = self.db.collection("rooms");
-        collection.delete_one(bson::to_document(room)?, None).await
-    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use crate::user::{DevinciType, DevinciUser};
-    use crate::Room;
-
-    #[test]
-    fn serialize_deserialize_room_test() {
-        let room = Room::new(0, 0, 0, 0);
-        let new_room = bson::from_document::<Room>(bson::to_document(&room).unwrap()).unwrap();
-
-        assert_eq!(0, new_room.get_office_id());
-        assert_eq!(0, new_room.get_waiting_id());
-        assert_eq!(0, new_room.get_text_id());
-    }
 
     #[test]
     fn serialize_deserialize_user_test() {

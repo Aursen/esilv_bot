@@ -1,2 +1,2 @@
-pub mod room;
+pub mod offices;
 pub mod subject;

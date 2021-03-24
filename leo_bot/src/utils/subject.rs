@@ -1,4 +1,4 @@
-use crate::SubjectsMessage;
+use crate::models::config::SubjectsMessage;
 use serenity::model::prelude::UserId;
 use serenity::{
     client::Context,

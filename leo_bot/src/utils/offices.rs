@@ -1,22 +1,57 @@
+use crate::models::room::Room;
 use crate::Config;
-use leo_shared::{MongoClient, room::Room};
+use crate::RoomStorage;
 use serenity::{
     model::{
         channel::ChannelType,
-        voice::VoiceState,
         permissions::Permissions,
-        prelude::{ChannelId, PermissionOverwrite, PermissionOverwriteType, RoleId, GuildId},
+        prelude::{ChannelId, GuildId, PermissionOverwrite, PermissionOverwriteType, RoleId},
+        voice::VoiceState,
     },
     prelude::*,
 };
+use std::sync::Arc;
 use tokio::sync::RwLockReadGuard;
 
+pub async fn handle_teacher_leaving(
+    context: &Context,
+    new: &VoiceState,
+) -> Result<(), SerenityError> {
+    let index = get_room_index(context, new).await?;
+    let lock = get_room_lock(context).await;
+    let mut room_storage = lock.write().await;
+
+    if let Some(i) = index{
+        room_storage.remove(i);
+    }
+
+    Ok(())
+}
+
 // Uses to remove room in bdd and in Discord
-pub async fn remove_room(context: &Context, db: &MongoClient, room: &Room) {
-    let _ = db.remove_room(room).await;
-    let _ = ChannelId(room.get_office_id()).delete(&context).await;
-    let _ = ChannelId(room.get_waiting_id()).delete(&context).await;
-    let _ = ChannelId(room.get_text_id()).delete(&context).await;
+async fn get_room_index(context: &Context, new: &VoiceState) -> Result<Option<usize>, SerenityError> {
+    let lock = get_room_lock(context).await;
+    let room_storage = lock.read().await;
+
+    if new.channel_id.is_none() {
+        if let Some(index) = room_storage
+            .iter()
+            .position(|x| x.get_user_id() == new.user_id.0)
+        {
+            ChannelId(room_storage[index].get_office_id())
+                .delete(&context)
+                .await?;
+            ChannelId(room_storage[index].get_waiting_id())
+                .delete(&context)
+                .await?;
+            ChannelId(room_storage[index].get_text_id())
+                .delete(&context)
+                .await?;
+            return Ok(Some(index));
+        }
+    }
+
+    Ok(None)
 }
 
 // Uses to create room in bdd and in Discord
@@ -25,7 +60,7 @@ pub async fn create_room(
     guild: GuildId,
     new: &VoiceState,
     config: RwLockReadGuard<'_, Config>,
-) {
+) -> Result<Room, SerenityError> {
     let permissions = vec![
         PermissionOverwrite {
             allow: Permissions::READ_MESSAGES,
@@ -60,8 +95,7 @@ pub async fn create_room(
                 .user_limit(2)
                 .kind(ChannelType::Voice)
         })
-        .await
-        .unwrap();
+        .await?;
     let text_channel = guild
         .create_channel(&context, |c| {
             c.name(format!("💬 {}", prof_name))
@@ -69,8 +103,7 @@ pub async fn create_room(
                 .permissions(permissions)
                 .kind(ChannelType::Text)
         })
-        .await
-        .unwrap();
+        .await?;
 
     let waiting = guild
         .create_channel(&context, |c| {
@@ -80,23 +113,24 @@ pub async fn create_room(
                 .user_limit(5)
                 .kind(ChannelType::Voice)
         })
-        .await
-        .unwrap();
+        .await?;
 
     let _ = guild
         .move_member(&context, new.user_id, new_channel.id)
         .await;
 
-    let bdd_result = MongoClient::init().await;
-
-    let room = Room::new(
+    Ok(Room::new(
         new.user_id.0,
         new_channel.id.0,
         waiting.id.0,
         text_channel.id.0,
-    );
+    ))
+}
 
-    if let Ok(bdd) = bdd_result {
-        let _ = bdd.add_room(&room).await;
-    }
+pub async fn get_room_lock(context: &Context) -> Arc<RwLock<Vec<Room>>> {
+    let data_read = context.data.read().await;
+    data_read
+        .get::<RoomStorage>()
+        .expect("Expected RoomStorage in TypeMap.")
+        .clone()
 }
