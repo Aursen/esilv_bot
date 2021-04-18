@@ -1,4 +1,4 @@
-use actix_web::client::Client;
+use actix_web::{client::Client, Error, error::ContentTypeError::ParseError};
 use form_urlencoded::byte_serialize;
 use leo_shared::user::{DevinciType, DevinciUser};
 use serde::{Deserialize, Serialize};
@@ -67,8 +67,13 @@ impl ADFSAuth {
     }
 
     pub async fn get_devinci_user(&self, token: &str) -> actix_web::Result<DevinciUser> {
-        let infos = token.split('.').collect::<Vec<_>>()[1];
-        let decoded = base64::decode(infos).unwrap_or_default();
+        let infos = token.split('.').collect::<Vec<_>>();
+
+        if infos.len() < 2 {
+            return Err(Error::from(ParseError))
+        }
+
+        let decoded = base64::decode(infos[1]).unwrap_or_default();
         let user: Claims = serde_json::from_slice(&decoded)?;
 
         let devinci_type = match user.group {
