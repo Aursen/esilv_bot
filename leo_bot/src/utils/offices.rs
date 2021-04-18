@@ -13,6 +13,28 @@ use serenity::{
 use std::sync::Arc;
 use tokio::sync::RwLockReadGuard;
 
+pub async fn handle_teacher_opening(
+    lock: Arc<RwLock<Config>>,
+    context: &Context,
+    guild_id: &GuildId,
+    new: &VoiceState,
+) -> Result<(), SerenityError> {
+
+    let room_lock = get_room_lock(context).await;
+    let room = create_or_move(lock, context, guild_id, new).await?;
+
+    //println!("========================== {:?}", room);
+
+    if let Some(r) = room {
+        let mut room_storage = room_lock.write().await;
+        room_storage.push(r);
+
+        //println!("========================== {:?}", room_storage);
+    }
+
+    Ok(())
+}
+
 pub async fn handle_teacher_leaving(
     context: &Context,
     new: &VoiceState,
@@ -21,15 +43,47 @@ pub async fn handle_teacher_leaving(
     let lock = get_room_lock(context).await;
     let mut room_storage = lock.write().await;
 
-    if let Some(i) = index{
+    if let Some(i) = index {
         room_storage.remove(i);
     }
 
     Ok(())
 }
 
+async fn create_or_move(
+    lock: Arc<RwLock<Config>>,
+    context: &Context,
+    guild_id: &GuildId,
+    new: &VoiceState,
+) -> Result<Option<Room>, SerenityError> {
+    let config = lock.read().await;
+    let room_lock = get_room_lock(context).await;
+    let room_storage = room_lock.read().await;
+
+    if let Some(channel) = new.channel_id {
+        if channel.0 == config.room {
+            if let Some(room) = room_storage
+                .iter()
+                .find(|e| e.get_user_id() == new.user_id.0)
+            {
+                guild_id
+                    .move_member(context, new.user_id, room.get_office_id())
+                    .await?;
+                return Ok(None)
+            } else {
+                return Ok(Some(create_room(context, *guild_id, &new, config).await?));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 // Uses to remove room in bdd and in Discord
-async fn get_room_index(context: &Context, new: &VoiceState) -> Result<Option<usize>, SerenityError> {
+async fn get_room_index(
+    context: &Context,
+    new: &VoiceState,
+) -> Result<Option<usize>, SerenityError> {
     let lock = get_room_lock(context).await;
     let room_storage = lock.read().await;
 
@@ -92,7 +146,6 @@ pub async fn create_room(
             c.name(format!("🔊 {}", prof_name))
                 .category(config.teacher_category)
                 .permissions(permissions.clone())
-                .user_limit(2)
                 .kind(ChannelType::Voice)
         })
         .await?;
@@ -110,7 +163,6 @@ pub async fn create_room(
             c.name(format!("⏳ {}", prof_name))
                 .category(config.teacher_category)
                 .permissions(permissions_waiting)
-                .user_limit(5)
                 .kind(ChannelType::Voice)
         })
         .await?;

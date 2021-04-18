@@ -5,7 +5,7 @@ mod utils;
 use crate::{
     models::{config::Config, room::Room},
     utils::{
-        offices::{create_room, handle_teacher_leaving},
+        offices::{handle_teacher_opening, handle_teacher_leaving},
         subject::{close_subject_channel, open_subject_channel},
     },
 };
@@ -110,35 +110,17 @@ impl EventHandler for Handler {
                 .expect("Expected Config in TypeMap.")
                 .clone()
         };
-        let config = config_lock.read().await;
-
         let _ = handle_teacher_leaving(&context, &new).await;
 
-        let lock = get_room_lock(&context).await;
-        let room_storage = lock.read().await;
-
-        //TODO Clean this up but I don't have enough time
         if let Some(guild) = guild_id {
-            if let Some(channel) = &new.channel_id {
-                if channel.0 == config.room {
-                    if let Some(room) = room_storage
-                        .iter()
-                        .find(|e| e.get_user_id() == new.user_id.0)
-                    {
-                        let _ = guild
-                            .move_member(&context, new.user_id, room.get_office_id())
-                            .await;
-                        return;
-                    } else {
-                        if let Ok(room) = create_room(&context, guild, &new, config).await {
-                            drop(room_storage);
-                            let mut room_storage = lock.write().await;
-                            room_storage.push(room);
-                        }
-                        return;
-                    }
-                }
+            if handle_teacher_opening(config_lock.clone(), &context, &guild, &new).await.is_ok() {
+                return
+            }
 
+            let lock = get_room_lock(&context).await;
+            let room_storage = lock.read().await;
+
+            if let Some(channel) = &new.channel_id {
                 if let Some(room) = room_storage.iter().find(|e| e.get_office_id() == channel.0) {
                     let _ = ChannelId(room.get_text_id()).create_permission(
                         &context,
@@ -148,12 +130,16 @@ impl EventHandler for Handler {
                             kind: PermissionOverwriteType::Member(new.user_id),
                         },
                     );
-                    return;
+                    return
                 }
             }
         }
 
         if let Some(o) = old {
+            
+            let lock = get_room_lock(&context).await;
+            let room_storage = lock.read().await;
+
             if let Some(channel) = o.channel_id {
                 if let Some(room) = room_storage.iter().find(|e| e.get_office_id() == channel.0) {
                     let _ = ChannelId(room.get_text_id()).create_permission(

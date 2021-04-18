@@ -43,7 +43,7 @@ impl MongoClient {
 
         let user = collection.find_one(doc, None).await?;
         match user {
-            Some(u) => Ok(Some(bson::from_document::<DevinciUser>(u)?)),
+            Some(u) => Ok(Some(mongodb::bson::from_document::<DevinciUser>(u)?)),
             None => Ok(None),
         }
     }
@@ -53,7 +53,7 @@ impl MongoClient {
         let collection = self.db.collection("users");
         user.set_discord_id(id);
         collection
-            .insert_one(bson::to_document(user)?, None)
+            .insert_one(mongodb::bson::to_document(user)?, None)
             .await?;
         Ok(())
     }
@@ -72,6 +72,6 @@ mod tests {
             String::from("test@devinci.fr"),
             DevinciType::Professor,
         );
-        bson::from_document::<DevinciUser>(bson::to_document(&user).unwrap()).unwrap();
+        mongodb::bson::from_document::<DevinciUser>(mongodb::bson::to_document(&user).unwrap()).unwrap();
     }
 }
