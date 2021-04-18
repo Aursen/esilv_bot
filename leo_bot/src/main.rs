@@ -67,7 +67,17 @@ impl EventHandler for Handler {
             .find(|e| e.id == reaction.message_id.0);
 
         if let Some(s) = subject {
-            open_subject_channel(&context, reaction, s).await;
+            open_subject_channel(&context, reaction.clone(), s).await;
+        }
+
+        if config.gamer == reaction.message_id.0 {
+            if let Some(guild) = reaction.guild_id {
+                if let Some(id) = reaction.user_id {
+                    if let Ok(mut member) = guild.member(&context, id).await{
+                        let _ = member.add_role(&context, config.roles["gamer"]);
+                    }
+                }
+            }
         }
     }
 
@@ -90,7 +100,17 @@ impl EventHandler for Handler {
             .find(|e| e.id == reaction.message_id.0);
 
         if let Some(s) = subject {
-            close_subject_channel(&context, reaction, s).await;
+            close_subject_channel(&context, reaction.clone(), s).await;
+        }
+
+        if config.gamer == reaction.message_id.0 {
+            if let Some(guild) = reaction.guild_id {
+                if let Some(id) = reaction.user_id {
+                    if let Ok(mut member) = guild.member(&context, id).await{
+                        let _ = member.remove_role(&context, config.roles["gamer"]);
+                    }
+                }
+            }
         }
     }
 

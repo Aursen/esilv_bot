@@ -7,6 +7,7 @@ pub struct Config {
     pub webhook: u64,
     pub room: u64,
     pub teacher_category: u64,
+    pub gamer: u64,
     pub subjects: Vec<SubjectsMessage>,
 }
 
