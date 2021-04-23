@@ -69,16 +69,6 @@ impl EventHandler for Handler {
         if let Some(s) = subject {
             open_subject_channel(&context, reaction.clone(), s).await;
         }
-
-        if config.gamer == reaction.message_id.0 {
-            if let Some(guild) = reaction.guild_id {
-                if let Some(id) = reaction.user_id {
-                    if let Ok(mut member) = guild.member(&context, id).await{
-                        let _ = member.add_role(&context, config.roles["gamer"]);
-                    }
-                }
-            }
-        }
     }
 
     async fn reaction_remove(&self, context: Context, reaction: Reaction) {
@@ -101,16 +91,6 @@ impl EventHandler for Handler {
 
         if let Some(s) = subject {
             close_subject_channel(&context, reaction.clone(), s).await;
-        }
-
-        if config.gamer == reaction.message_id.0 {
-            if let Some(guild) = reaction.guild_id {
-                if let Some(id) = reaction.user_id {
-                    if let Ok(mut member) = guild.member(&context, id).await{
-                        let _ = member.remove_role(&context, config.roles["gamer"]);
-                    }
-                }
-            }
         }
     }
 
