@@ -19,6 +19,7 @@ An experiment aimed at improving communication about course content between stud
 
 ## Requirements
   * [OpenSSL](https://github.com/openssl/openssl)
+  * **Environment variables** (copy .env.template to .env and contact jean.marchand@edu.devinci.fr for real variables)
 
 ## Wiki
 
