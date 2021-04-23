@@ -2,7 +2,7 @@
 
  <h1 align="center">
   <br>
-   <img src="/static/esilv.png"/>
+   <img src="/static/esilv.png" width="200px" style="margin-bottom:20px;"/>
   <br>
   ESILV bot
 </h1>
