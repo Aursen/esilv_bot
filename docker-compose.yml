@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+    web:
+        build:
+            context: .
+            dockerfile: leo_website/Dockerfile
+        ports:
+            - "8080:8080"
+        env_file:
+            - .env
+    
+    bot:
+        build:
+            context: .
+            dockerfile: leo_bot/Dockerfile
+        env_file:
+            - .env
