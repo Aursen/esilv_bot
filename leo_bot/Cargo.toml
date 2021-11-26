@@ -1,24 +1,20 @@
 [package]
 name = "leo_bot"
-version = "0.3.2"
-authors = ["Aursen <jeanno11@live.fr>"]
+version = "0.4.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-dotenv = "0.15"
-tracing = "0.1"
-tracing-subscriber = "0.2"
-tracing-futures = "0.2" # needed so intrument works with async functions.
+actix-web = "4.0.0-beta.12"
+dotenv = "0.15.0"
 serde_json = "1.0"
 serde = "1.0"
-leo_shared = {path = "../leo_shared"}
-
-[dependencies.tokio]
-version = "1.0"
-features = ["macros", "signal", "rt-multi-thread"]
+async-trait = "0.1.51"
+futures = "0.3.17"
+shared_lib = { path= "../shared_lib" }
 
 [dependencies.serenity]
-features = ["cache", "framework", "standard_framework", "rustls_backend"]
+default-features = false
 version = "0.10"
+features = ["builder", "cache", "client", "gateway", "http", "model", "utils", "rustls_backend"]

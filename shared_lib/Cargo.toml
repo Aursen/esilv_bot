@@ -1,0 +1,18 @@
+[package]
+name = "shared_lib"
+version = "0.4.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde_json = "1"
+serde = "1"
+actix = "0.12.0"
+actix-web = "4.0.0-beta.12"
+tokio = "1.13.0"
+tokio-util = "0.6.9"
+rand = "0.8.4"
+bytes = "1.1.0"
+actix-codec = "0.4.1"
+futures="0.3.17"

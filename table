@@ -1,0 +1,7 @@
+CREATE TABLE users (
+	discord_id BIGINT PRIMARY KEY NOT NULL,
+	first_name TEXT NOT NULL,
+	last_name TEXT NOT NULL,
+	mail TEXT NOT NULL,
+	func SMALLINT NOT NULL
+)
